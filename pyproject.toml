@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "yami-cli"
+dynamic = ["version"]
+description = "Yet Another Milvus Interface - A command-line tool for Milvus vector database"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [
+    { name = "Jeremy Zhu" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Utilities",
+]
+keywords = ["milvus", "cli", "vector-database", "command-line"]
+
+dependencies = [
+    "typer[all]>=0.12.0",
+    "pymilvus>=2.5.0",
+    "rich>=13.0.0",
+    "pyyaml>=6.0",
+    "tomli>=2.0.0;python_version<'3.11'",
+    "tomli-w>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+
+[project.scripts]
+yami = "yami.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/zilliztech/yami-cli"
+Repository = "https://github.com/zilliztech/yami-cli"
+
+[tool.hatch.version]
+path = "src/yami/version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/yami"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
