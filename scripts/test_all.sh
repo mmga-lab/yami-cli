@@ -23,22 +23,22 @@ run_test() {
     if [ "$expect_fail" = "true" ]; then
         if eval "$cmd" > /dev/null 2>&1; then
             echo -e "${RED}FAILED${NC} (expected failure but succeeded)"
-            ((FAILED++))
+            FAILED=$((FAILED + 1))
             return 1
         else
             echo -e "${GREEN}PASSED${NC}"
-            ((PASSED++))
+            PASSED=$((PASSED + 1))
             return 0
         fi
     else
         if eval "$cmd" > /dev/null 2>&1; then
             echo -e "${GREEN}PASSED${NC}"
-            ((PASSED++))
+            PASSED=$((PASSED + 1))
             return 0
         else
             echo -e "${RED}FAILED${NC}"
             echo "  Command: $cmd"
-            ((FAILED++))
+            FAILED=$((FAILED + 1))
             return 1
         fi
     fi
@@ -49,7 +49,7 @@ skip_test() {
     local name="$1"
     local reason="$2"
     echo -e "Testing: $name... ${YELLOW}SKIPPED${NC} ($reason)"
-    ((SKIPPED++))
+    SKIPPED=$((SKIPPED + 1))
 }
 
 echo "=================================="
