@@ -129,10 +129,23 @@ yami partition stats <collection> <name>   # Get partition statistics
 ### Data Operations
 
 ```bash
-yami data insert <collection> --file data.json  # Insert from file
-yami data upsert <collection> --file data.json  # Upsert from file
-yami data delete <collection> --ids 1,2,3       # Delete by IDs
-yami data delete <collection> --filter "x > 10" # Delete by filter
+# Insert from JSON file
+yami data insert my_col --file data.json
+
+# Insert from Parquet via DuckDB SQL
+yami data insert my_col --sql "SELECT * FROM 'data.parquet'"
+
+# Insert with transformation
+yami data insert my_col --sql "SELECT id, vec FROM 'data.parquet' WHERE score > 0.5"
+
+# Upsert from Parquet
+yami data upsert my_col --sql "SELECT * FROM 'updates.parquet'"
+
+# Delete by IDs
+yami data delete my_col --ids 1,2,3
+
+# Delete by filter
+yami data delete my_col --filter "category == 'old'"
 ```
 
 ### Search Operations

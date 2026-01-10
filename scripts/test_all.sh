@@ -134,6 +134,23 @@ echo ""
 # ==========================================
 echo "--- Data Tests ---"
 
+# Create test Parquet file for SQL insert
+TEST_PARQUET_FILE="/tmp/test_data_$$.parquet"
+python3 << PYEOF
+import pyarrow as pa
+import pyarrow.parquet as pq
+data = {
+    'id': [10, 11, 12],
+    'vector': [
+        [0.1]*64,
+        [0.2]*64,
+        [0.3]*64,
+    ]
+}
+table = pa.table(data)
+pq.write_table(table, '$TEST_PARQUET_FILE')
+PYEOF
+
 # Create test data file
 TEST_DATA_FILE="/tmp/test_data_$$.json"
 cat > "$TEST_DATA_FILE" << 'EOF'
@@ -144,12 +161,14 @@ cat > "$TEST_DATA_FILE" << 'EOF'
 ]
 EOF
 
-run_test "data insert" "yami --uri $MILVUS_URI data insert $TEST_COL --file $TEST_DATA_FILE"
+run_test "data insert (file)" "yami --uri $MILVUS_URI data insert $TEST_COL --file $TEST_DATA_FILE"
+run_test "data insert (sql)" "yami --uri $MILVUS_URI data insert $TEST_COL --sql \"SELECT * FROM '$TEST_PARQUET_FILE'\""
 
 # Wait for data to be searchable
 sleep 2
 
-run_test "data upsert" "yami --uri $MILVUS_URI data upsert $TEST_COL --file $TEST_DATA_FILE"
+run_test "data upsert (file)" "yami --uri $MILVUS_URI data upsert $TEST_COL --file $TEST_DATA_FILE"
+run_test "data upsert (sql)" "yami --uri $MILVUS_URI data upsert $TEST_COL --sql \"SELECT * FROM '$TEST_PARQUET_FILE'\""
 echo ""
 
 # ==========================================
@@ -285,7 +304,7 @@ echo ""
 echo "--- Cleanup ---"
 run_test "collection drop (test1)" "yami --uri $MILVUS_URI collection drop $TEST_COL -f"
 run_test "collection drop (test2)" "yami --uri $MILVUS_URI collection drop $TEST_COL2 -f"
-rm -f "$TEST_DATA_FILE"
+rm -f "$TEST_DATA_FILE" "$TEST_PARQUET_FILE"
 echo ""
 
 # ==========================================
