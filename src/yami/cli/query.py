@@ -14,14 +14,87 @@ from yami.output.formatter import format_output, print_error, print_info
 app = typer.Typer(no_args_is_help=True)
 
 
+def _get_vectors_from_sql(sql: str) -> List[List[float]]:
+    """Execute SQL with DuckDB and return vectors."""
+    try:
+        import duckdb
+    except ImportError:
+        raise ImportError("duckdb is required for --sql option. Install with: uv add duckdb")
+
+    conn = duckdb.connect()
+    result = conn.execute(sql).fetchall()
+    conn.close()
+
+    vectors = []
+    for row in result:
+        # First column should be the vector
+        vec = row[0]
+        if isinstance(vec, (list, tuple)):
+            vectors.append(list(vec))
+        elif isinstance(vec, str):
+            vectors.append(json.loads(vec))
+        else:
+            raise ValueError(f"Unexpected vector type: {type(vec)}")
+    return vectors
+
+
+def _get_random_vector(dim: int) -> List[float]:
+    """Generate a random vector for testing."""
+    import random
+    return [random.random() for _ in range(dim)]
+
+
+def _get_collection_vector_dim(client, collection_name: str, anns_field: Optional[str] = None) -> int:
+    """Get vector dimension from collection schema."""
+    from pymilvus import DataType
+
+    vector_types = {
+        DataType.FLOAT_VECTOR,
+        DataType.FLOAT16_VECTOR,
+        DataType.BFLOAT16_VECTOR,
+        DataType.SPARSE_FLOAT_VECTOR,
+        101, 102, 103, 104,  # Raw enum values
+    }
+
+    schema = client.describe_collection(collection_name)
+    for field in schema.get("fields", []):
+        field_type = field.get("type")
+        # Handle both enum and string types
+        if field_type in vector_types or (isinstance(field_type, str) and "VECTOR" in field_type):
+            if anns_field is None or field.get("name") == anns_field:
+                params = field.get("params", {})
+                return params.get("dim", 128)
+    return 128
+
+
 @app.command()
 def search(
     collection: str = typer.Argument(..., help="Collection name"),
-    vector: str = typer.Option(
-        ...,
+    vector: Optional[str] = typer.Option(
+        None,
         "--vector",
         "-v",
-        help="Vector to search (JSON array, e.g., '[0.1, 0.2, 0.3]')",
+        help="Vector as JSON array (e.g., '[0.1, 0.2, 0.3]')",
+    ),
+    vector_file: Optional[str] = typer.Option(
+        None,
+        "--vector-file",
+        help="Read vector(s) from JSON file",
+    ),
+    sql: Optional[str] = typer.Option(
+        None,
+        "--sql",
+        help="SQL query to get vectors via DuckDB (e.g., \"SELECT vec FROM 'data.parquet'\")",
+    ),
+    random: bool = typer.Option(
+        False,
+        "--random",
+        help="Use random vector for testing",
+    ),
+    dim: Optional[int] = typer.Option(
+        None,
+        "--dim",
+        help="Vector dimension (for --random, auto-detected if not specified)",
     ),
     limit: int = typer.Option(
         10,
@@ -38,7 +111,6 @@ def search(
     output_fields: Optional[str] = typer.Option(
         None,
         "--output-fields",
-        "-o",
         help="Comma-separated list of fields to return",
     ),
     anns_field: Optional[str] = typer.Option(
@@ -69,16 +141,88 @@ def search(
         help="Partition names (comma-separated)",
     ),
 ) -> None:
-    """Perform vector similarity search."""
+    """Perform vector similarity search.
+
+    \b
+    Vector input methods (use one):
+      --vector      JSON array directly
+      --vector-file Read from JSON file
+      --sql         Query via DuckDB (supports Parquet, CSV, JSON)
+      --random      Random vector for testing
+
+    \b
+    Examples:
+      # Direct vector input
+      yami query search my_col -v '[0.1, 0.2, ...]'
+
+      # From file
+      yami query search my_col --vector-file query.json
+
+      # From Parquet via DuckDB
+      yami query search my_col --sql "SELECT vec FROM 'data.parquet' WHERE id=1"
+
+      # From CSV
+      yami query search my_col --sql "SELECT embedding FROM 'vectors.csv' LIMIT 1"
+
+      # Random vector for testing
+      yami query search my_col --random
+    """
     ctx = get_context()
     client = ctx.get_client()
 
     try:
-        # Parse vector
-        query_vector = json.loads(vector)
-        if not isinstance(query_vector, list):
-            print_error("Vector must be a JSON array")
+        query_vectors = None
+
+        # Determine vector source
+        sources = sum([
+            vector is not None,
+            vector_file is not None,
+            sql is not None,
+            random,
+        ])
+
+        if sources == 0:
+            print_error("Must specify one of: --vector, --vector-file, --sql, --id, or --random")
             raise typer.Exit(1)
+        if sources > 1:
+            print_error("Only one vector source allowed")
+            raise typer.Exit(1)
+
+        if vector:
+            # Direct JSON vector
+            query_vectors = [json.loads(vector)]
+            print_info(f"Using vector with {len(query_vectors[0])} dimensions")
+
+        elif vector_file:
+            # Read from file
+            file_path = Path(vector_file)
+            if not file_path.exists():
+                print_error(f"File not found: {vector_file}")
+                raise typer.Exit(1)
+            data = json.loads(file_path.read_text())
+            if isinstance(data, list) and len(data) > 0:
+                if isinstance(data[0], list):
+                    query_vectors = data  # Multiple vectors
+                else:
+                    query_vectors = [data]  # Single vector
+            else:
+                print_error("Invalid vector file format")
+                raise typer.Exit(1)
+            print_info(f"Loaded {len(query_vectors)} vector(s) from file")
+
+        elif sql:
+            # DuckDB SQL query
+            query_vectors = _get_vectors_from_sql(sql)
+            if not query_vectors:
+                print_error("SQL query returned no vectors")
+                raise typer.Exit(1)
+            print_info(f"Loaded {len(query_vectors)} vector(s) from SQL query")
+
+        elif random:
+            # Random vector for testing
+            vec_dim = dim or _get_collection_vector_dim(client, collection, anns_field)
+            query_vectors = [_get_random_vector(vec_dim)]
+            print_info(f"Using random vector with {vec_dim} dimensions")
 
         # Parse output fields
         fields = None
@@ -101,7 +245,7 @@ def search(
 
         results = client.search(
             collection_name=collection,
-            data=[query_vector],
+            data=query_vectors,
             filter=filter_expr or "",
             limit=limit,
             output_fields=fields or ["*"],
@@ -112,18 +256,21 @@ def search(
 
         # Flatten results for display
         if results and len(results) > 0:
-            flat_results = []
-            for hit in results[0]:
-                item = {"id": hit.get("id"), "distance": hit.get("distance")}
-                entity = hit.get("entity", {})
-                item.update(entity)
-                flat_results.append(item)
-            format_output(flat_results, ctx.output, title="Search Results")
+            all_results = []
+            for batch_idx, batch in enumerate(results):
+                for hit in batch:
+                    item = {"id": hit.get("id"), "distance": hit.get("distance")}
+                    if len(results) > 1:
+                        item["_query_idx"] = batch_idx
+                    entity = hit.get("entity", {})
+                    item.update(entity)
+                    all_results.append(item)
+            format_output(all_results, ctx.output, title="Search Results")
         else:
             format_output([], ctx.output, title="Search Results")
 
     except json.JSONDecodeError as e:
-        print_error(f"Invalid vector JSON: {e}")
+        print_error(f"Invalid JSON: {e}")
         raise typer.Exit(1)
     except Exception as e:
         print_error(str(e))
