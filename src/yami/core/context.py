@@ -19,6 +19,7 @@ class CLIContext:
     profile: str | None = None
     output: str = "table"
     timeout: float = 30.0
+    quiet: bool = False  # Suppress non-data output for agent-friendly mode
 
     _client: "YamiClient | None" = field(default=None, repr=False)
 

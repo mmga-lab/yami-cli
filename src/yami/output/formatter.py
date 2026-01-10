@@ -3,13 +3,32 @@
 from __future__ import annotations
 
 import json
+import sys
 from typing import Any
 
 import yaml
 from rich.console import Console
-from rich.table import Table
 
 console = Console()
+stderr_console = Console(file=sys.stderr)
+
+
+def _get_output_format() -> str:
+    """Get current output format from context."""
+    try:
+        from yami.core.context import get_context
+        return get_context().output
+    except Exception:
+        return "table"
+
+
+def _is_quiet() -> bool:
+    """Check if quiet mode is enabled."""
+    try:
+        from yami.core.context import get_context
+        return get_context().quiet
+    except Exception:
+        return False
 
 
 def format_output(
@@ -45,6 +64,8 @@ def print_yaml(data: Any) -> None:
 
 def print_table(data: dict | list, title: str = "") -> None:
     """Print data as Rich table."""
+    from rich.table import Table
+
     if data is None:
         console.print("[yellow]No data[/yellow]")
         return
@@ -59,6 +80,8 @@ def print_table(data: dict | list, title: str = "") -> None:
 
 def _print_list_table(data: list, title: str = "") -> None:
     """Print a list as a table."""
+    from rich.table import Table
+
     if not data:
         console.print("[yellow]No data found[/yellow]")
         return
@@ -101,6 +124,8 @@ def _print_list_table(data: list, title: str = "") -> None:
 
 def _print_dict_table(data: dict, title: str = "") -> None:
     """Print a dict as a key-value table."""
+    from rich.table import Table
+
     table = Table(title=title, show_header=True)
     table.add_column("Property", style="cyan")
     table.add_column("Value")
@@ -113,21 +138,50 @@ def _print_dict_table(data: dict, title: str = "") -> None:
     console.print(table)
 
 
-def print_success(message: str) -> None:
-    """Print a success message."""
-    console.print(f"[green]{message}[/green]")
+def print_success(message: str, data: dict | None = None) -> None:
+    """Print a success message.
+
+    In JSON mode, outputs structured response.
+    In quiet mode, suppresses output unless data is provided.
+    """
+    output_format = _get_output_format()
+    quiet = _is_quiet()
+
+    if output_format == "json":
+        result = {"status": "success", "message": message}
+        if data:
+            result["data"] = data
+        console.print_json(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+    elif not quiet:
+        console.print(f"[green]{message}[/green]")
 
 
-def print_error(message: str) -> None:
-    """Print an error message."""
-    console.print(f"[red]Error:[/red] {message}")
+def print_error(message: str, code: str = "ERROR") -> None:
+    """Print an error message.
+
+    In JSON mode, outputs structured error to stdout.
+    Otherwise outputs to stderr for clean stdout.
+    """
+    output_format = _get_output_format()
+
+    if output_format == "json":
+        error_data = {"error": {"code": code, "message": message}}
+        console.print_json(json.dumps(error_data, indent=2, ensure_ascii=False))
+    else:
+        stderr_console.print(f"[red]Error:[/red] {message}")
 
 
 def print_warning(message: str) -> None:
-    """Print a warning message."""
-    console.print(f"[yellow]Warning:[/yellow] {message}")
+    """Print a warning message to stderr."""
+    if not _is_quiet():
+        stderr_console.print(f"[yellow]Warning:[/yellow] {message}")
 
 
 def print_info(message: str) -> None:
-    """Print an info message."""
-    console.print(f"[blue]{message}[/blue]")
+    """Print an info message to stderr.
+
+    Outputs to stderr to keep stdout clean for data.
+    Suppressed in quiet mode.
+    """
+    if not _is_quiet():
+        stderr_console.print(f"[blue]{message}[/blue]")

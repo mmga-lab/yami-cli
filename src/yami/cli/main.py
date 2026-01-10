@@ -101,6 +101,12 @@ def main_callback(
         "-o",
         help="Output format: table, json, yaml",
     ),
+    quiet: bool = typer.Option(
+        False,
+        "--quiet",
+        "-q",
+        help="Suppress non-data output (agent-friendly mode)",
+    ),
     version: Optional[bool] = typer.Option(
         None,
         "--version",
@@ -126,6 +132,7 @@ def main_callback(
         db=db,
         profile=profile,
         output=output,
+        quiet=quiet,
     )
     set_context(cli_ctx)
 
