@@ -9,8 +9,39 @@ from typing import Any
 import yaml
 from rich.console import Console
 
-console = Console()
-stderr_console = Console(file=sys.stderr)
+# Default consoles (for human mode)
+_console: Console | None = None
+_stderr_console: Console | None = None
+
+
+def _is_agent_mode() -> bool:
+    """Check if running in agent mode."""
+    try:
+        from yami.core.context import get_context
+        return get_context().is_agent_mode
+    except Exception:
+        return False
+
+
+def _get_console() -> Console:
+    """Get stdout console, with colors disabled in agent mode."""
+    global _console
+    if _is_agent_mode():
+        # Agent mode: no colors, no markup
+        return Console(force_terminal=False, no_color=True)
+    if _console is None:
+        _console = Console()
+    return _console
+
+
+def _get_stderr_console() -> Console:
+    """Get stderr console, with colors disabled in agent mode."""
+    global _stderr_console
+    if _is_agent_mode():
+        return Console(file=sys.stderr, force_terminal=False, no_color=True)
+    if _stderr_console is None:
+        _stderr_console = Console(file=sys.stderr)
+    return _stderr_console
 
 
 def _get_output_format() -> str:
@@ -53,13 +84,13 @@ def format_output(
 
 def print_json(data: Any) -> None:
     """Print data as JSON."""
-    console.print_json(json.dumps(data, indent=2, default=str, ensure_ascii=False))
+    _get_console().print_json(json.dumps(data, indent=2, default=str, ensure_ascii=False))
 
 
 def print_yaml(data: Any) -> None:
     """Print data as YAML."""
     output = yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False)
-    console.print(output)
+    _get_console().print(output)
 
 
 def print_table(data: dict | list, title: str = "") -> None:
@@ -67,7 +98,7 @@ def print_table(data: dict | list, title: str = "") -> None:
     from rich.table import Table
 
     if data is None:
-        console.print("[yellow]No data[/yellow]")
+        _get_console().print("[yellow]No data[/yellow]")
         return
 
     if isinstance(data, list):
@@ -75,7 +106,7 @@ def print_table(data: dict | list, title: str = "") -> None:
     elif isinstance(data, dict):
         _print_dict_table(data, title)
     else:
-        console.print(str(data))
+        _get_console().print(str(data))
 
 
 def _print_list_table(data: list, title: str = "") -> None:
@@ -83,7 +114,7 @@ def _print_list_table(data: list, title: str = "") -> None:
     from rich.table import Table
 
     if not data:
-        console.print("[yellow]No data found[/yellow]")
+        _get_console().print("[yellow]No data found[/yellow]")
         return
 
     first_item = data[0]
@@ -94,7 +125,7 @@ def _print_list_table(data: list, title: str = "") -> None:
         table.add_column("Name", style="cyan")
         for item in data:
             table.add_row(item)
-        console.print(table)
+        _get_console().print(table)
 
     elif isinstance(first_item, dict):
         # List of dicts
@@ -114,12 +145,12 @@ def _print_list_table(data: list, title: str = "") -> None:
                 row_values.append(str(val) if val is not None else "")
             table.add_row(*row_values)
 
-        console.print(table)
+        _get_console().print(table)
 
     else:
         # Other types - just print
         for item in data:
-            console.print(str(item))
+            _get_console().print(str(item))
 
 
 def _print_dict_table(data: dict, title: str = "") -> None:
@@ -135,7 +166,7 @@ def _print_dict_table(data: dict, title: str = "") -> None:
             value = json.dumps(value, indent=2, ensure_ascii=False)
         table.add_row(str(key), str(value) if value is not None else "")
 
-    console.print(table)
+    _get_console().print(table)
 
 
 def print_success(message: str, data: dict | None = None) -> None:
@@ -151,9 +182,9 @@ def print_success(message: str, data: dict | None = None) -> None:
         result = {"status": "success", "message": message}
         if data:
             result["data"] = data
-        console.print_json(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        _get_console().print_json(json.dumps(result, indent=2, default=str, ensure_ascii=False))
     elif not quiet:
-        console.print(f"[green]{message}[/green]")
+        _get_console().print(f"[green]{message}[/green]")
 
 
 def print_error(message: str, code: str = "ERROR") -> None:
@@ -166,15 +197,15 @@ def print_error(message: str, code: str = "ERROR") -> None:
 
     if output_format == "json":
         error_data = {"error": {"code": code, "message": message}}
-        console.print_json(json.dumps(error_data, indent=2, ensure_ascii=False))
+        _get_console().print_json(json.dumps(error_data, indent=2, ensure_ascii=False))
     else:
-        stderr_console.print(f"[red]Error:[/red] {message}")
+        _get_stderr_console().print(f"[red]Error:[/red] {message}")
 
 
 def print_warning(message: str) -> None:
     """Print a warning message to stderr."""
     if not _is_quiet():
-        stderr_console.print(f"[yellow]Warning:[/yellow] {message}")
+        _get_stderr_console().print(f"[yellow]Warning:[/yellow] {message}")
 
 
 def print_info(message: str) -> None:
@@ -184,4 +215,4 @@ def print_info(message: str) -> None:
     Suppressed in quiet mode.
     """
     if not _is_quiet():
-        stderr_console.print(f"[blue]{message}[/blue]")
+        _get_stderr_console().print(f"[blue]{message}[/blue]")

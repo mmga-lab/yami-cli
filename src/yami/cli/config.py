@@ -67,6 +67,7 @@ def config_list() -> None:
     config_dict = {
         "default_profile": config.default_profile or "(not set)",
         "default_output": config.default_output,
+        "mode": config.mode,
         "timeout": config.timeout,
         "config_dir": str(get_config_dir()),
     }

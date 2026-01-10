@@ -38,6 +38,7 @@ def load_config() -> YamiConfig:
         default_profile=defaults.get("profile", ""),
         default_output=defaults.get("output", "table"),
         timeout=defaults.get("timeout", 30.0),
+        mode=defaults.get("mode", "human"),
     )
 
 
@@ -51,6 +52,7 @@ def save_config(config: YamiConfig) -> None:
             "profile": config.default_profile,
             "output": config.default_output,
             "timeout": config.timeout,
+            "mode": config.mode,
         }
     }
 
@@ -124,3 +126,8 @@ def get_uri_from_env() -> str | None:
 def get_token_from_env() -> str | None:
     """Get Milvus token from environment variable."""
     return os.environ.get("MILVUS_TOKEN") or os.environ.get("YAMI_TOKEN")
+
+
+def get_mode_from_env() -> str | None:
+    """Get mode from environment variable."""
+    return os.environ.get("YAMI_MODE")

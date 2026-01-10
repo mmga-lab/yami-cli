@@ -17,11 +17,40 @@ class CLIContext:
     token: str | None = None
     db: str | None = None
     profile: str | None = None
-    output: str = "table"
+    mode: str = "human"  # "human" or "agent"
+    # These can be overridden, but default based on mode
+    _output: str | None = None
+    _quiet: bool | None = None
     timeout: float = 30.0
-    quiet: bool = False  # Suppress non-data output for agent-friendly mode
 
     _client: "YamiClient | None" = field(default=None, repr=False)
+
+    @property
+    def is_agent_mode(self) -> bool:
+        """Check if running in agent mode."""
+        return self.mode == "agent"
+
+    @property
+    def output(self) -> str:
+        """Get output format. Agent mode defaults to json."""
+        if self._output is not None:
+            return self._output
+        return "json" if self.is_agent_mode else "table"
+
+    @output.setter
+    def output(self, value: str) -> None:
+        self._output = value
+
+    @property
+    def quiet(self) -> bool:
+        """Get quiet mode. Agent mode defaults to True."""
+        if self._quiet is not None:
+            return self._quiet
+        return self.is_agent_mode
+
+    @quiet.setter
+    def quiet(self, value: bool) -> None:
+        self._quiet = value
 
     def get_uri(self) -> str:
         """Get the effective Milvus URI.

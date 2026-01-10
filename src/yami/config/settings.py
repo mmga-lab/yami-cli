@@ -25,6 +25,7 @@ class YamiConfig:
     default_profile: str = ""
     default_output: str = "table"
     timeout: float = 30.0
+    mode: str = "human"  # "human" or "agent"
     profiles: dict[str, ConnectionProfile] = field(default_factory=dict)
 
 

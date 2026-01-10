@@ -66,6 +66,24 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+def _get_default_mode() -> str:
+    """Get default mode from env or config."""
+    import os
+    from yami.config.loader import load_config
+
+    # Environment variable has priority
+    env_mode = os.environ.get("YAMI_MODE")
+    if env_mode in ("human", "agent"):
+        return env_mode
+
+    # Fall back to config file
+    try:
+        config = load_config()
+        return config.mode
+    except Exception:
+        return "human"
+
+
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,
@@ -95,17 +113,23 @@ def main_callback(
         "-p",
         help="Connection profile name",
     ),
-    output: str = typer.Option(
-        "table",
+    mode: Optional[str] = typer.Option(
+        None,
+        "--mode",
+        "-m",
+        help="Output mode: human (default) or agent",
+    ),
+    output: Optional[str] = typer.Option(
+        None,
         "--output",
         "-o",
-        help="Output format: table, json, yaml",
+        help="Output format: table, json, yaml (overrides mode default)",
     ),
-    quiet: bool = typer.Option(
-        False,
+    quiet: Optional[bool] = typer.Option(
+        None,
         "--quiet",
         "-q",
-        help="Suppress non-data output (agent-friendly mode)",
+        help="Suppress non-data output (overrides mode default)",
     ),
     version: Optional[bool] = typer.Option(
         None,
@@ -119,11 +143,18 @@ def main_callback(
     """Yami - Yet Another Milvus Interface.
 
     A powerful CLI tool for managing Milvus vector database.
+
+    Modes:
+      human  - Table output with colors (default)
+      agent  - JSON output, no colors, quiet mode
     """
     # If no command is invoked, show help
     if ctx.invoked_subcommand is None:
         console.print(ctx.get_help())
         raise typer.Exit()
+
+    # Determine mode: CLI > env > config > default
+    effective_mode = mode if mode else _get_default_mode()
 
     # Create and store context
     cli_ctx = CLIContext(
@@ -131,9 +162,15 @@ def main_callback(
         token=token,
         db=db,
         profile=profile,
-        output=output,
-        quiet=quiet,
+        mode=effective_mode,
     )
+
+    # Apply explicit overrides if provided
+    if output is not None:
+        cli_ctx.output = output
+    if quiet is not None:
+        cli_ctx.quiet = quiet
+
     set_context(cli_ctx)
 
     # Store in typer context for subcommands
