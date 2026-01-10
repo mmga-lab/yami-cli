@@ -79,7 +79,7 @@ def search(
     sql: Optional[str] = typer.Option(
         None,
         "--sql",
-        help="SQL query to get vectors via DuckDB (e.g., \"SELECT vec FROM 'data.parquet'\")",
+        help="Read vectors from Parquet via DuckDB SQL",
     ),
     random: bool = typer.Option(
         False,
@@ -141,27 +141,15 @@ def search(
     \b
     Vector input methods (use one):
       --vector  JSON array directly
-      --sql     Query via DuckDB (Parquet, CSV, JSON, etc.)
+      --sql     SQL query to read vectors from Parquet via DuckDB
       --random  Random vector for testing
 
     \b
     Examples:
-      # Direct vector input
-      yami query search my_col -v '[0.1, 0.2, ...]'
-
       # From Parquet file
-      yami query search my_col --sql "SELECT vec FROM 'data.parquet' WHERE id=1"
+      yami query search my_col --sql "SELECT embedding FROM 'data.parquet' WHERE id=1"
 
-      # From CSV file
-      yami query search my_col --sql "SELECT embedding FROM 'vectors.csv' LIMIT 1"
-
-      # From JSON file (wrapped: {"vec": [...]})
-      yami query search my_col --sql "SELECT vec FROM read_json('query.json')"
-
-      # From JSON file (raw array: [...])
-      yami query search my_col --sql "SELECT list(json) FROM read_json('query.json')"
-
-      # Batch search from multiple vectors
+      # Batch search
       yami query search my_col --sql "SELECT embedding FROM 'data.parquet' LIMIT 5"
 
       # Random vector for testing
