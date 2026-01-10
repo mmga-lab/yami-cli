@@ -30,10 +30,7 @@ def _get_skill_source_dir() -> Path | None:
 
 def _get_claude_skill_dir() -> Path:
     """Get the Claude Code skill directory."""
-    import os
-
-    config_home = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-    return Path(config_home) / "claude" / "skills" / "yami"
+    return Path.home() / ".claude" / "skills" / "yami"
 
 
 @app.command()

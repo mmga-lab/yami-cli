@@ -3,7 +3,7 @@
 
 set -e
 
-SKILL_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/claude/skills/yami"
+SKILL_DIR="$HOME/.claude/skills/yami"
 SOURCE_DIR="$(dirname "$0")/../.claude/skills/yami"
 
 # Check if source exists
