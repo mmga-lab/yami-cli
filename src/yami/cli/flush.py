@@ -51,22 +51,3 @@ def flush_all() -> None:
         raise typer.Exit(1)
 
 
-@app.command("state")
-def flush_state() -> None:
-    """Get the flush-all state.
-
-    Returns whether the global flush operation has completed.
-    """
-    ctx = get_context()
-    client = ctx.get_client()
-
-    try:
-        completed = client.get_flush_all_state()
-        result = {
-            "completed": completed,
-            "status": "completed" if completed else "in_progress",
-        }
-        format_output(result, ctx.output, title="Flush State")
-    except Exception as e:
-        print_error(str(e))
-        raise typer.Exit(1)

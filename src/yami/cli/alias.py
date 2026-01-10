@@ -27,15 +27,17 @@ def list_aliases(
 
     try:
         if collection:
-            aliases = client.list_aliases(collection)
+            result = client.list_aliases(collection)
+            # result is {'aliases': [...], 'collection_name': ..., 'db_name': ...}
+            aliases = result.get("aliases", [])
             format_output(aliases, ctx.output, title=f"Aliases for: {collection}")
         else:
             # List all collections and their aliases
             collections = client.list_collections()
             all_aliases = []
             for coll in collections:
-                aliases = client.list_aliases(coll)
-                for alias in aliases:
+                result = client.list_aliases(coll)
+                for alias in result.get("aliases", []):
                     all_aliases.append({"collection": coll, "alias": alias})
             format_output(all_aliases, ctx.output, title="All Aliases")
     except Exception as e:

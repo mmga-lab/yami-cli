@@ -13,6 +13,7 @@ from yami.core.schema import (
     build_index_params,
     build_schema,
     format_field_help,
+    parse_field,
     parse_fields,
 )
 from yami.output.formatter import format_output, print_error, print_info, print_success
@@ -236,6 +237,92 @@ def stats(
     try:
         stats_data = client.get_collection_stats(name)
         format_output(stats_data, ctx.output, title=f"Stats: {name}")
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command("add-field")
+def add_field(
+    collection: str = typer.Argument(..., help="Collection name"),
+    field: str = typer.Argument(
+        ...,
+        help="Field definition (e.g., 'score:int64', 'tags:array:varchar:100')",
+    ),
+    default: Optional[str] = typer.Option(
+        None,
+        "--default",
+        "-d",
+        help="Default value for the field (JSON format for complex types)",
+    ),
+) -> None:
+    """Add a new field to an existing collection.
+
+    \b
+    Requires: Milvus 2.6.0 or later
+
+    \b
+    Field syntax: name:type[:param][:modifier]
+
+    \b
+    Note: Added fields MUST include :nullable modifier.
+
+    \b
+    Examples:
+      # Add nullable integer field
+      yami collection add-field my_col "score:int64:nullable"
+
+      # Add nullable field with default value
+      yami collection add-field my_col "status:varchar:64:nullable" --default '"active"'
+
+      # Add nullable array field
+      yami collection add-field my_col "tags:array:varchar:100:nullable"
+
+      # Add nullable vector field
+      yami collection add-field my_col "extra_vec:float_vector:128:nullable"
+    """
+    ctx = get_context()
+    client = ctx.get_client()
+
+    try:
+        # Parse field spec
+        spec = parse_field(field)
+
+        # Build kwargs
+        kwargs = {}
+
+        if spec.max_length is not None:
+            kwargs["max_length"] = spec.max_length
+        if spec.dim is not None:
+            kwargs["dim"] = spec.dim
+        if spec.element_type is not None:
+            kwargs["element_type"] = spec.element_type
+        if spec.max_capacity is not None:
+            kwargs["max_capacity"] = spec.max_capacity
+        if spec.nullable:
+            kwargs["nullable"] = True
+
+        # Parse default value
+        if default is not None:
+            try:
+                kwargs["default_value"] = json.loads(default)
+            except json.JSONDecodeError:
+                # Try as raw string
+                kwargs["default_value"] = default
+
+        # Add field
+        client.add_collection_field(
+            collection_name=collection,
+            field_name=spec.name,
+            data_type=spec.data_type,
+            **kwargs,
+        )
+
+        print_success(f"Added field '{spec.name}' to collection '{collection}'")
+
+    except SchemaParseError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
     except Exception as e:
         print_error(str(e))
         raise typer.Exit(1)
