@@ -17,6 +17,7 @@ from yami.cli import (
     database,
     flush,
     index,
+    io,
     load,
     partition,
     query,
@@ -55,6 +56,7 @@ app.add_typer(completion.app, name="completion", help="Shell completion manageme
 app.add_typer(flush.app, name="flush", help="Flush operations")
 app.add_typer(compact.app, name="compact", help="Compaction operations")
 app.add_typer(segment.app, name="segment", help="Segment information")
+app.add_typer(io.app, name="io", help="Import/Export data")
 
 
 def version_callback(value: bool) -> None:
