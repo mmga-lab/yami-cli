@@ -10,6 +10,7 @@ from rich.console import Console
 from yami.cli import (
     alias,
     collection,
+    completion,
     config,
     data,
     database,
@@ -47,6 +48,7 @@ app.add_typer(user.app, name="user", help="User management")
 app.add_typer(role.app, name="role", help="Role management")
 app.add_typer(server.app, name="server", help="Server information")
 app.add_typer(config.app, name="config", help="Configuration management")
+app.add_typer(completion.app, name="completion", help="Shell completion management")
 
 
 def version_callback(value: bool) -> None:
