@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from enum import Enum
 
 import typer
 
 from yami.output.formatter import print_error, print_info, print_success
 
 app = typer.Typer(no_args_is_help=True)
+
+
+class SkillScope(str, Enum):
+    """Skill installation scope."""
+    user = "user"
+    project = "project"
 
 
 def _get_skill_source_dir() -> Path | None:
@@ -28,37 +35,34 @@ def _get_skill_source_dir() -> Path | None:
     return None
 
 
-def _get_claude_skill_dir() -> Path:
-    """Get the Claude Code skill directory."""
-    return Path.home() / ".claude" / "skills" / "yami"
+def _get_skill_target_dir(scope: SkillScope, project_dir: Path | None = None) -> Path:
+    """Get the target directory for skill installation.
 
+    Args:
+        scope: user or project
+        project_dir: Project directory for project scope (defaults to cwd)
 
-@app.command()
-def install(
-    force: bool = typer.Option(
-        False,
-        "--force",
-        "-f",
-        help="Overwrite existing skill files",
-    ),
-) -> None:
-    """Install yami skill to Claude Code.
-
-    This makes Claude Code aware of yami CLI commands and usage.
+    Returns:
+        Path to skill directory
     """
-    source_dir = _get_skill_source_dir()
-    if source_dir is None:
-        print_error("Could not find yami skill files")
-        print_info("Skill files should be in .claude/skills/yami/")
-        raise typer.Exit(1)
+    if scope == SkillScope.user:
+        return Path.home() / ".claude" / "skills" / "yami"
+    else:
+        base = project_dir or Path.cwd()
+        return base / ".claude" / "skills" / "yami"
 
-    target_dir = _get_claude_skill_dir()
 
+def _install_skill_to(source_dir: Path, target_dir: Path, force: bool) -> bool:
+    """Install skill files to target directory.
+
+    Returns:
+        True if installed, False if skipped
+    """
     # Check if already exists
     if target_dir.exists() and not force:
-        print_info(f"Skill already installed at: {target_dir}")
+        print_info(f"Skill already exists at: {target_dir}")
         print_info("Use --force to overwrite")
-        return
+        return False
 
     # Create target directory
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -69,30 +73,91 @@ def install(
         if file.is_file() and file.suffix == ".md":
             shutil.copy2(file, target_dir / file.name)
             files_copied += 1
-            print_info(f"Copied: {file.name}")
+            print_info(f"  Copied: {file.name}")
 
     if files_copied == 0:
         print_error("No skill files found to copy")
+        return False
+
+    return True
+
+
+@app.command()
+def install(
+    scope: SkillScope = typer.Option(
+        SkillScope.user,
+        "--scope",
+        "-s",
+        help="Installation scope: user (~/.claude/skills/) or project (.claude/skills/)",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Overwrite existing skill files",
+    ),
+    project_dir: Path = typer.Option(
+        None,
+        "--project",
+        "-p",
+        help="Project directory for project scope (defaults to current directory)",
+    ),
+) -> None:
+    """Install yami skill for Claude Code / Agent SDK.
+
+    \b
+    Scopes:
+      user    - Install to ~/.claude/skills/ (personal, all projects)
+      project - Install to .claude/skills/ (shared via git)
+
+    \b
+    Examples:
+      yami skill install                    # Install to user scope
+      yami skill install --scope project    # Install to current project
+      yami skill install -s project -p /path/to/project
+    """
+    source_dir = _get_skill_source_dir()
+    if source_dir is None:
+        print_error("Could not find yami skill files")
         raise typer.Exit(1)
 
-    print_success(f"Yami skill installed to: {target_dir}")
-    print_info("Restart Claude Code to apply changes")
+    target_dir = _get_skill_target_dir(scope, project_dir)
+
+    print_info(f"Installing to {scope.value} scope...")
+    if _install_skill_to(source_dir, target_dir, force):
+        print_success(f"Yami skill installed to: {target_dir}")
+        if scope == SkillScope.project:
+            print_info("Add .claude/skills/ to git to share with your team")
+        else:
+            print_info("Restart Claude Code to apply changes")
 
 
 @app.command()
 def uninstall(
+    scope: SkillScope = typer.Option(
+        SkillScope.user,
+        "--scope",
+        "-s",
+        help="Uninstall scope: user or project",
+    ),
     force: bool = typer.Option(
         False,
         "--force",
         "-f",
         help="Skip confirmation prompt",
     ),
+    project_dir: Path = typer.Option(
+        None,
+        "--project",
+        "-p",
+        help="Project directory for project scope",
+    ),
 ) -> None:
-    """Uninstall yami skill from Claude Code."""
-    target_dir = _get_claude_skill_dir()
+    """Uninstall yami skill."""
+    target_dir = _get_skill_target_dir(scope, project_dir)
 
     if not target_dir.exists():
-        print_info("Yami skill is not installed")
+        print_info(f"Yami skill is not installed in {scope.value} scope")
         return
 
     if not force:
@@ -101,22 +166,42 @@ def uninstall(
             raise typer.Abort()
 
     shutil.rmtree(target_dir)
-    print_success("Yami skill uninstalled")
+    print_success(f"Yami skill uninstalled from {scope.value} scope")
 
 
 @app.command()
-def status() -> None:
-    """Check if yami skill is installed in Claude Code."""
-    target_dir = _get_claude_skill_dir()
+def status(
+    project_dir: Path = typer.Option(
+        None,
+        "--project",
+        "-p",
+        help="Project directory to check",
+    ),
+) -> None:
+    """Check yami skill installation status."""
+    # Check user scope
+    user_dir = _get_skill_target_dir(SkillScope.user)
+    user_installed = user_dir.exists() and (user_dir / "SKILL.md").exists()
 
-    if target_dir.exists():
-        skill_file = target_dir / "SKILL.md"
-        if skill_file.exists():
-            print_success(f"Yami skill is installed at: {target_dir}")
-        else:
-            print_info(f"Skill directory exists but SKILL.md is missing: {target_dir}")
+    # Check project scope
+    proj_dir = _get_skill_target_dir(SkillScope.project, project_dir)
+    proj_installed = proj_dir.exists() and (proj_dir / "SKILL.md").exists()
+
+    print_info("Yami Skill Status:")
+    print_info("")
+
+    if user_installed:
+        print_success(f"  user:     {user_dir}")
     else:
-        print_info("Yami skill is not installed")
+        print_info("  user:     Not installed")
+
+    if proj_installed:
+        print_success(f"  project:  {proj_dir}")
+    else:
+        print_info("  project:  Not installed")
+
+    if not user_installed and not proj_installed:
+        print_info("")
         print_info("Run 'yami skill install' to install")
 
 
