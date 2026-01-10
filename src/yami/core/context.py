@@ -22,6 +22,22 @@ class CLIContext:
 
     _client: "YamiClient | None" = field(default=None, repr=False)
 
+    def get_uri(self) -> str:
+        """Get the effective Milvus URI.
+
+        Returns the URI from profile or direct uri setting.
+        Falls back to default localhost if not configured.
+        """
+        if self.uri:
+            return self.uri
+        if self.profile:
+            from yami.config.profiles import get_profile
+
+            profile_data = get_profile(self.profile)
+            if profile_data and "uri" in profile_data:
+                return profile_data["uri"]
+        return "http://localhost:19530"
+
     def get_client(self) -> "YamiClient":
         """Get or create a Milvus client."""
         if self._client is None:
