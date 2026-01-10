@@ -10,49 +10,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      etcd:
-        image: quay.io/coreos/etcd:v3.5.18
-        env:
-          ETCD_AUTO_COMPACTION_MODE: revision
-          ETCD_AUTO_COMPACTION_RETENTION: "1000"
-          ETCD_QUOTA_BACKEND_BYTES: "4294967296"
-          ETCD_SNAPSHOT_COUNT: "50000"
-        options: >-
-          --health-cmd "etcdctl endpoint health"
-          --health-interval 30s
-          --health-timeout 20s
-          --health-retries 3
-
-      minio:
-        image: minio/minio:RELEASE.2023-03-20T20-16-18Z
-        env:
-          MINIO_ACCESS_KEY: minioadmin
-          MINIO_SECRET_KEY: minioadmin
-        ports:
-          - 9000:9000
-          - 9001:9001
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live"
-          --health-interval 30s
-          --health-timeout 20s
-          --health-retries 3
-
-      milvus:
-        image: milvusdb/milvus:v2.6.8
-        env:
-          ETCD_ENDPOINTS: etcd:2379
-          MINIO_ADDRESS: minio:9000
-        ports:
-          - 19530:19530
-          - 9091:9091
-        options: >-
-          --health-cmd "curl -f http://localhost:9091/healthz"
-          --health-interval 30s
-          --health-timeout 20s
-          --health-retries 5
-          --health-start-period 90s
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -74,17 +31,25 @@ jobs:
           uv pip install -e .
           uv pip install duckdb pyarrow
 
+      - name: Start Milvus
+        run: |
+          # Download and start Milvus standalone
+          curl -sfL https://raw.githubusercontent.com/milvus-io/milvus/master/scripts/standalone_embed.sh -o standalone_embed.sh
+          bash standalone_embed.sh start
+
       - name: Wait for Milvus
         run: |
           echo "Waiting for Milvus to be ready..."
-          for i in {1..30}; do
+          for i in {1..60}; do
             if curl -s http://localhost:9091/healthz | grep -q "OK"; then
               echo "Milvus is ready!"
-              break
+              exit 0
             fi
-            echo "Waiting... ($i/30)"
+            echo "Waiting... ($i/60)"
             sleep 5
           done
+          echo "Milvus failed to start"
+          exit 1
 
       - name: Run tests
         env:
@@ -93,3 +58,8 @@ jobs:
           source .venv/bin/activate
           chmod +x scripts/test_all.sh
           ./scripts/test_all.sh
+
+      - name: Stop Milvus
+        if: always()
+        run: |
+          bash standalone_embed.sh stop || true
