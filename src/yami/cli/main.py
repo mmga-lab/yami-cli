@@ -10,10 +10,12 @@ from rich.console import Console
 from yami.cli import (
     alias,
     collection,
+    compact,
     completion,
     config,
     data,
     database,
+    flush,
     index,
     load,
     partition,
@@ -49,6 +51,8 @@ app.add_typer(role.app, name="role", help="Role management")
 app.add_typer(server.app, name="server", help="Server information")
 app.add_typer(config.app, name="config", help="Configuration management")
 app.add_typer(completion.app, name="completion", help="Shell completion management")
+app.add_typer(flush.app, name="flush", help="Flush operations")
+app.add_typer(compact.app, name="compact", help="Compaction operations")
 
 
 def version_callback(value: bool) -> None:
