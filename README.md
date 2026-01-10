@@ -129,17 +129,20 @@ yami partition stats <collection> <name>   # Get partition statistics
 ### Data Operations
 
 ```bash
-# Insert from JSON file
-yami data insert my_col --file data.json
-
-# Insert from Parquet via DuckDB SQL
+# Insert from Parquet
 yami data insert my_col --sql "SELECT * FROM 'data.parquet'"
+
+# Insert from JSON file
+yami data insert my_col --sql "SELECT * FROM read_json('data.json')"
 
 # Insert with transformation
 yami data insert my_col --sql "SELECT id, vec FROM 'data.parquet' WHERE score > 0.5"
 
 # Upsert from Parquet
 yami data upsert my_col --sql "SELECT * FROM 'updates.parquet'"
+
+# Inline JSON insert
+yami data insert my_col --data '[{"id": 1, "vec": [0.1, 0.2, ...]}]'
 
 # Delete by IDs
 yami data delete my_col --ids 1,2,3

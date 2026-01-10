@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Optional
 
 import typer
@@ -12,23 +11,6 @@ from yami.core.context import get_context
 from yami.output.formatter import format_output, print_error, print_info, print_success
 
 app = typer.Typer(no_args_is_help=True)
-
-
-def _load_data_from_file(file_path: str) -> list[dict]:
-    """Load data from a JSON file."""
-    path = Path(file_path)
-    if not path.exists():
-        raise FileNotFoundError(f"File not found: {file_path}")
-
-    with open(path) as f:
-        data = json.load(f)
-
-    if isinstance(data, dict):
-        return [data]
-    elif isinstance(data, list):
-        return data
-    else:
-        raise ValueError("File must contain a JSON object or array of objects")
 
 
 def _load_data_from_sql(sql: str) -> list[dict]:
@@ -60,16 +42,11 @@ def _load_data_from_sql(sql: str) -> list[dict]:
 @app.command()
 def insert(
     collection: str = typer.Argument(..., help="Collection name"),
-    file: Optional[str] = typer.Option(
-        None,
-        "--file",
-        "-f",
-        help="JSON file containing data to insert",
-    ),
     sql: Optional[str] = typer.Option(
         None,
         "--sql",
-        help="DuckDB SQL to read data from Parquet",
+        "-s",
+        help="DuckDB SQL to read data",
     ),
     data_json: Optional[str] = typer.Option(
         None,
@@ -87,24 +64,23 @@ def insert(
         1000,
         "--batch-size",
         "-b",
-        help="Batch size for SQL insert",
+        help="Batch size for insert",
     ),
 ) -> None:
     """Insert data into a collection.
 
     \b
     Data sources (use one):
-      --file  JSON file
-      --sql   DuckDB SQL query (for Parquet files)
+      --sql   DuckDB SQL query
       --data  Inline JSON
 
     \b
     Examples:
-      # From JSON file
-      yami data insert my_col --file data.json
-
-      # From Parquet via SQL
+      # From Parquet file
       yami data insert my_col --sql "SELECT * FROM 'data.parquet'"
+
+      # From JSON file
+      yami data insert my_col --sql "SELECT * FROM read_json('data.json')"
 
       # With transformation
       yami data insert my_col --sql "SELECT id, vec FROM 'data.parquet' WHERE score > 0.5"
@@ -119,17 +95,15 @@ def insert(
         if sql:
             data = _load_data_from_sql(sql)
             print_info(f"Loaded {len(data)} rows from SQL query")
-        elif file:
-            data = _load_data_from_file(file)
         elif data_json:
             parsed = json.loads(data_json)
             data = [parsed] if isinstance(parsed, dict) else parsed
         else:
-            print_error("One of --file, --sql, or --data is required")
+            print_error("Either --sql or --data is required")
             raise typer.Exit(1)
 
-        # Insert in batches for SQL (can be large)
-        if sql and len(data) > batch_size:
+        # Insert in batches for large data
+        if len(data) > batch_size:
             total = 0
             for i in range(0, len(data), batch_size):
                 batch = data[i : i + batch_size]
@@ -165,16 +139,11 @@ def insert(
 @app.command()
 def upsert(
     collection: str = typer.Argument(..., help="Collection name"),
-    file: Optional[str] = typer.Option(
-        None,
-        "--file",
-        "-f",
-        help="JSON file containing data to upsert",
-    ),
     sql: Optional[str] = typer.Option(
         None,
         "--sql",
-        help="DuckDB SQL to read data from Parquet",
+        "-s",
+        help="DuckDB SQL to read data",
     ),
     data_json: Optional[str] = typer.Option(
         None,
@@ -192,7 +161,7 @@ def upsert(
         1000,
         "--batch-size",
         "-b",
-        help="Batch size for SQL upsert",
+        help="Batch size for upsert",
     ),
 ) -> None:
     """Upsert data into a collection.
@@ -202,17 +171,16 @@ def upsert(
 
     \b
     Data sources (use one):
-      --file  JSON file
-      --sql   DuckDB SQL query (for Parquet files)
+      --sql   DuckDB SQL query
       --data  Inline JSON
 
     \b
     Examples:
-      # From JSON file
-      yami data upsert my_col --file data.json
-
-      # From Parquet via SQL
+      # From Parquet file
       yami data upsert my_col --sql "SELECT * FROM 'data.parquet'"
+
+      # From JSON file
+      yami data upsert my_col --sql "SELECT * FROM read_json('data.json')"
 
       # With transformation
       yami data upsert my_col --sql "SELECT id, vec FROM 'data.parquet' WHERE updated = true"
@@ -224,17 +192,15 @@ def upsert(
         if sql:
             data = _load_data_from_sql(sql)
             print_info(f"Loaded {len(data)} rows from SQL query")
-        elif file:
-            data = _load_data_from_file(file)
         elif data_json:
             parsed = json.loads(data_json)
             data = [parsed] if isinstance(parsed, dict) else parsed
         else:
-            print_error("One of --file, --sql, or --data is required")
+            print_error("Either --sql or --data is required")
             raise typer.Exit(1)
 
-        # Upsert in batches for SQL (can be large)
-        if sql and len(data) > batch_size:
+        # Upsert in batches for large data
+        if len(data) > batch_size:
             total = 0
             for i in range(0, len(data), batch_size):
                 batch = data[i : i + batch_size]

@@ -161,14 +161,14 @@ cat > "$TEST_DATA_FILE" << 'EOF'
 ]
 EOF
 
-run_test "data insert (file)" "yami --uri $MILVUS_URI data insert $TEST_COL --file $TEST_DATA_FILE"
-run_test "data insert (sql)" "yami --uri $MILVUS_URI data insert $TEST_COL --sql \"SELECT * FROM '$TEST_PARQUET_FILE'\""
+run_test "data insert (json)" "yami --uri $MILVUS_URI data insert $TEST_COL --sql \"SELECT * FROM read_json('$TEST_DATA_FILE')\""
+run_test "data insert (parquet)" "yami --uri $MILVUS_URI data insert $TEST_COL --sql \"SELECT * FROM '$TEST_PARQUET_FILE'\""
 
 # Wait for data to be searchable
 sleep 2
 
-run_test "data upsert (file)" "yami --uri $MILVUS_URI data upsert $TEST_COL --file $TEST_DATA_FILE"
-run_test "data upsert (sql)" "yami --uri $MILVUS_URI data upsert $TEST_COL --sql \"SELECT * FROM '$TEST_PARQUET_FILE'\""
+run_test "data upsert (json)" "yami --uri $MILVUS_URI data upsert $TEST_COL --sql \"SELECT * FROM read_json('$TEST_DATA_FILE')\""
+run_test "data upsert (parquet)" "yami --uri $MILVUS_URI data upsert $TEST_COL --sql \"SELECT * FROM '$TEST_PARQUET_FILE'\""
 echo ""
 
 # ==========================================
