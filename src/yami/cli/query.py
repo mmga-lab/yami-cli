@@ -76,11 +76,6 @@ def search(
         "-v",
         help="Vector as JSON array (e.g., '[0.1, 0.2, 0.3]')",
     ),
-    vector_file: Optional[str] = typer.Option(
-        None,
-        "--vector-file",
-        help="Read vector(s) from JSON file",
-    ),
     sql: Optional[str] = typer.Option(
         None,
         "--sql",
@@ -145,24 +140,29 @@ def search(
 
     \b
     Vector input methods (use one):
-      --vector      JSON array directly
-      --vector-file Read from JSON file
-      --sql         Query via DuckDB (supports Parquet, CSV, JSON)
-      --random      Random vector for testing
+      --vector  JSON array directly
+      --sql     Query via DuckDB (Parquet, CSV, JSON, etc.)
+      --random  Random vector for testing
 
     \b
     Examples:
       # Direct vector input
       yami query search my_col -v '[0.1, 0.2, ...]'
 
-      # From file
-      yami query search my_col --vector-file query.json
-
-      # From Parquet via DuckDB
+      # From Parquet file
       yami query search my_col --sql "SELECT vec FROM 'data.parquet' WHERE id=1"
 
-      # From CSV
+      # From CSV file
       yami query search my_col --sql "SELECT embedding FROM 'vectors.csv' LIMIT 1"
+
+      # From JSON file (wrapped: {"vec": [...]})
+      yami query search my_col --sql "SELECT vec FROM read_json('query.json')"
+
+      # From JSON file (raw array: [...])
+      yami query search my_col --sql "SELECT list(json) FROM read_json('query.json')"
+
+      # Batch search from multiple vectors
+      yami query search my_col --sql "SELECT embedding FROM 'data.parquet' LIMIT 5"
 
       # Random vector for testing
       yami query search my_col --random
@@ -176,13 +176,12 @@ def search(
         # Determine vector source
         sources = sum([
             vector is not None,
-            vector_file is not None,
             sql is not None,
             random,
         ])
 
         if sources == 0:
-            print_error("Must specify one of: --vector, --vector-file, --sql, --id, or --random")
+            print_error("Must specify one of: --vector, --sql, or --random")
             raise typer.Exit(1)
         if sources > 1:
             print_error("Only one vector source allowed")
@@ -192,23 +191,6 @@ def search(
             # Direct JSON vector
             query_vectors = [json.loads(vector)]
             print_info(f"Using vector with {len(query_vectors[0])} dimensions")
-
-        elif vector_file:
-            # Read from file
-            file_path = Path(vector_file)
-            if not file_path.exists():
-                print_error(f"File not found: {vector_file}")
-                raise typer.Exit(1)
-            data = json.loads(file_path.read_text())
-            if isinstance(data, list) and len(data) > 0:
-                if isinstance(data[0], list):
-                    query_vectors = data  # Multiple vectors
-                else:
-                    query_vectors = [data]  # Single vector
-            else:
-                print_error("Invalid vector file format")
-                raise typer.Exit(1)
-            print_info(f"Loaded {len(query_vectors)} vector(s) from file")
 
         elif sql:
             # DuckDB SQL query
