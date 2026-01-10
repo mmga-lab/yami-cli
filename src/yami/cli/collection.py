@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
+from typing import Annotated, Optional
 
 import typer
 
 from yami.core.context import get_context
-from yami.output.formatter import format_output, print_error, print_success
+from yami.core.schema import (
+    SchemaParseError,
+    build_index_params,
+    build_schema,
+    format_field_help,
+    parse_fields,
+)
+from yami.output.formatter import format_output, print_error, print_info, print_success
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -41,57 +48,94 @@ def describe(
 
 @app.command()
 def create(
-    name: str = typer.Argument(..., help="Collection name"),
+    name: str = typer.Argument(None, help="Collection name"),
+    fields: Annotated[
+        Optional[list[str]],
+        typer.Option(
+            "--field",
+            "-f",
+            help="Field definition (can be repeated). Format: name:type[:param][:modifier...]",
+        ),
+    ] = None,
     dimension: Optional[int] = typer.Option(
         None,
         "--dim",
         "-d",
-        help="Vector dimension (for quick create mode)",
-    ),
-    schema_file: Optional[str] = typer.Option(
-        None,
-        "--schema",
-        "-s",
-        help="Schema JSON file path (for custom schema)",
+        help="Vector dimension (quick create: id + vector only)",
     ),
     metric_type: str = typer.Option(
         "COSINE",
         "--metric",
         "-m",
-        help="Metric type: COSINE, L2, IP",
+        help="Metric type for quick create: COSINE, L2, IP",
     ),
     auto_id: bool = typer.Option(
         False,
         "--auto-id",
-        help="Enable auto ID generation",
+        help="Enable auto ID generation (quick create mode)",
     ),
-    primary_field: str = typer.Option(
-        "id",
-        "--primary-field",
-        help="Primary field name",
+    no_dynamic: bool = typer.Option(
+        False,
+        "--no-dynamic",
+        help="Disable dynamic fields",
     ),
-    vector_field: str = typer.Option(
-        "vector",
-        "--vector-field",
-        help="Vector field name",
+    show_help: bool = typer.Option(
+        False,
+        "--field-help",
+        help="Show field DSL syntax help",
     ),
 ) -> None:
     """Create a new collection.
 
-    Quick create mode (--dim): Creates a simple collection with id and vector fields.
-    Custom schema mode (--schema): Creates a collection from a JSON schema file.
+    \b
+    Quick create (--dim):
+      yami collection create my_col --dim 768
+      Creates: id (int64, pk) + vector (float_vector)
+
+    \b
+    Field DSL (--field):
+      yami collection create my_col \\
+        --field "id:int64:pk:auto" \\
+        --field "title:varchar:512" \\
+        --field "embedding:float_vector:768:COSINE"
+
+    \b
+    Use --field-help to see full DSL syntax.
     """
+    # Show field help if requested
+    if show_help:
+        print_info(format_field_help())
+        raise typer.Exit()
+
+    # Validate name is provided
+    if not name:
+        print_error("Collection name is required")
+        raise typer.Exit(1)
+
     ctx = get_context()
     client = ctx.get_client()
 
     try:
-        if schema_file:
-            # Load schema from file
-            with open(schema_file) as f:
-                schema_data = json.load(f)
-            # TODO: Parse and create collection from schema
-            print_error("Schema file creation not yet implemented")
-            raise typer.Exit(1)
+        if fields:
+            # DSL mode: parse field definitions
+            try:
+                specs = parse_fields(fields)
+            except SchemaParseError as e:
+                print_error(str(e))
+                print_info("Use --field-help to see field DSL syntax")
+                raise typer.Exit(1)
+
+            # Build schema and index params
+            schema = build_schema(specs, enable_dynamic=not no_dynamic)
+            index_params = build_index_params(specs)
+
+            client.create_collection(
+                collection_name=name,
+                schema=schema,
+                index_params=index_params,
+            )
+            print_success(f"Collection '{name}' created with {len(specs)} fields")
+
         elif dimension:
             # Quick create mode
             client.create_collection(
@@ -99,13 +143,19 @@ def create(
                 dimension=dimension,
                 metric_type=metric_type,
                 auto_id=auto_id,
-                primary_field_name=primary_field,
-                vector_field_name=vector_field,
             )
-            print_success(f"Collection '{name}' created successfully")
+            print_success(f"Collection '{name}' created (quick mode, dim={dimension})")
+
         else:
-            print_error("Either --dim or --schema is required")
+            print_error("Either --field or --dim is required")
+            print_info("Examples:")
+            print_info("  Quick:  yami collection create my_col --dim 768")
+            print_info("  DSL:    yami collection create my_col -f 'id:int64:pk' -f 'vec:float_vector:768'")
             raise typer.Exit(1)
+
+    except SchemaParseError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
     except Exception as e:
         print_error(str(e))
         raise typer.Exit(1)
