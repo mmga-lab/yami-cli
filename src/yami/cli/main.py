@@ -24,6 +24,7 @@ from yami.cli import (
     role,
     segment,
     server,
+    skill,
     user,
 )
 from yami.core.context import CLIContext, reset_context, set_context
@@ -57,6 +58,7 @@ app.add_typer(flush.app, name="flush", help="Flush operations")
 app.add_typer(compact.app, name="compact", help="Compaction operations")
 app.add_typer(segment.app, name="segment", help="Segment information")
 app.add_typer(io.app, name="io", help="Import/Export data")
+app.add_typer(skill.app, name="skill", help="Claude Code skill management")
 
 
 def version_callback(value: bool) -> None:
