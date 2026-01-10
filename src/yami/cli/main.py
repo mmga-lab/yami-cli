@@ -21,6 +21,7 @@ from yami.cli import (
     partition,
     query,
     role,
+    segment,
     server,
     user,
 )
@@ -53,6 +54,7 @@ app.add_typer(config.app, name="config", help="Configuration management")
 app.add_typer(completion.app, name="completion", help="Shell completion management")
 app.add_typer(flush.app, name="flush", help="Flush operations")
 app.add_typer(compact.app, name="compact", help="Compaction operations")
+app.add_typer(segment.app, name="segment", help="Segment information")
 
 
 def version_callback(value: bool) -> None:
