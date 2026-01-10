@@ -255,6 +255,8 @@ def build_schema(specs: list[FieldSpec], enable_dynamic: bool = True) -> Any:
             params["element_type"] = spec.element_type
         if spec.max_capacity is not None:
             params["max_capacity"] = spec.max_capacity
+        if spec.nullable:
+            params["nullable"] = True
 
         field_schema = FieldSchema(
             name=spec.name,
@@ -262,10 +264,6 @@ def build_schema(specs: list[FieldSpec], enable_dynamic: bool = True) -> Any:
             is_primary=spec.is_primary,
             **params,
         )
-
-        # Handle nullable (if supported)
-        if spec.nullable:
-            field_schema.nullable = True
 
         fields.append(field_schema)
 
