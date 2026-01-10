@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import List, Optional
 
 import typer
@@ -384,6 +383,31 @@ def get(
         raise typer.Exit(1)
 
 
+def _load_hybrid_requests_from_sql(sql: str) -> list[dict]:
+    """Load hybrid search requests from SQL query."""
+    try:
+        import duckdb
+    except ImportError:
+        raise ImportError("duckdb is required for --sql. Install with: uv add duckdb")
+
+    conn = duckdb.connect()
+    result = conn.execute(sql)
+    columns = [desc[0] for desc in result.description]
+
+    requests = []
+    for row in result.fetchall():
+        req_dict = {}
+        for i, col in enumerate(columns):
+            val = row[i]
+            if hasattr(val, "tolist"):
+                val = val.tolist()
+            req_dict[col] = val
+        requests.append(req_dict)
+
+    conn.close()
+    return requests
+
+
 @app.command("hybrid-search")
 def hybrid_search(
     collection: str = typer.Argument(..., help="Collection name"),
@@ -393,11 +417,11 @@ def hybrid_search(
         "-r",
         help="Search request as JSON: {\"field\": \"vec\", \"vector\": [...], \"limit\": 10}",
     ),
-    file: Optional[str] = typer.Option(
+    sql: Optional[str] = typer.Option(
         None,
-        "--file",
-        "-f",
-        help="JSON file containing search requests",
+        "--sql",
+        "-s",
+        help="DuckDB SQL to read search requests",
     ),
     limit: int = typer.Option(
         10,
@@ -451,20 +475,23 @@ def hybrid_search(
 
     \b
     Examples:
-        # Two vector fields with RRF ranking
-        yami query hybrid-search my_col \\
-            --req '{"field": "dense", "vector": [0.1, 0.2], "limit": 20}' \\
-            --req '{"field": "sparse", "vector": {...}, "limit": 20}'
+      # Inline JSON requests
+      yami query hybrid-search my_col \\
+        --req '{"field": "dense", "vector": [0.1, ...], "limit": 20}' \\
+        --req '{"field": "sparse", "vector": {...}, "limit": 20}'
 
-        # With weighted ranking
-        yami query hybrid-search my_col --file requests.json \\
-            --ranker weighted --weights 0.7,0.3
+      # From Parquet file
+      yami query hybrid-search my_col \\
+        --sql "SELECT * FROM 'requests.parquet'"
 
-        # requests.json format:
-        [
-            {"field": "vec1", "vector": [...], "limit": 20},
-            {"field": "vec2", "vector": [...], "limit": 20}
-        ]
+      # From JSON file
+      yami query hybrid-search my_col \\
+        --sql "SELECT * FROM read_json('requests.json')"
+
+      # With weighted ranking
+      yami query hybrid-search my_col \\
+        --sql "SELECT * FROM 'requests.parquet'" \\
+        --ranker weighted --weights 0.7,0.3
     """
     from pymilvus import AnnSearchRequest, RRFRanker, WeightedRanker
 
@@ -475,21 +502,16 @@ def hybrid_search(
         # Parse search requests
         requests_data = []
 
-        if file:
-            # Load from file
-            file_path = Path(file)
-            if not file_path.exists():
-                print_error(f"File not found: {file}")
-                raise typer.Exit(1)
-            requests_data = json.loads(file_path.read_text())
-            if not isinstance(requests_data, list):
-                requests_data = [requests_data]
+        if sql:
+            # Load from SQL
+            requests_data = _load_hybrid_requests_from_sql(sql)
+            print_info(f"Loaded {len(requests_data)} request(s) from SQL query")
         elif req:
             # Parse from --req options
             for r in req:
                 requests_data.append(json.loads(r))
         else:
-            print_error("Either --req or --file is required")
+            print_error("Either --req or --sql is required")
             raise typer.Exit(1)
 
         if len(requests_data) < 1:

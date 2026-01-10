@@ -177,20 +177,21 @@ yami query search my_col --random --filter "category == 'A'" --output-fields "id
 Multi-vector search with ranking fusion:
 
 ```bash
-# RRF ranker (default)
+# Inline JSON requests
 yami query hybrid-search my_col \
-  --req "dense_vec:[0.1,0.2,...]:10" \
-  --req "sparse_vec:{1:0.5,100:0.3}:10" \
-  --ranker rrf --k 60
+  --req '{"field": "dense", "vector": [...], "limit": 20}' \
+  --req '{"field": "sparse", "vector": {...}, "limit": 20}'
 
-# Weighted ranker
+# From Parquet file
+yami query hybrid-search my_col --sql "SELECT * FROM 'requests.parquet'"
+
+# From JSON file
+yami query hybrid-search my_col --sql "SELECT * FROM read_json('requests.json')"
+
+# With weighted ranker
 yami query hybrid-search my_col \
-  --req "vec1:[...]:10" \
-  --req "vec2:[...]:10" \
+  --sql "SELECT * FROM 'requests.parquet'" \
   --ranker weighted --weights "0.7,0.3"
-
-# From file
-yami query hybrid-search my_col --file requests.json
 ```
 
 #### Scalar Query
