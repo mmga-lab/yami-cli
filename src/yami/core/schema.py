@@ -10,6 +10,8 @@ Types:
     - varchar:max_length (e.g., varchar:256)
     - json
     - array:element_type:max_capacity (e.g., array:int64:100)
+    - array:varchar:max_length:max_capacity (e.g., array:varchar:64:100)
+    - struct(field1:type1,field2:type2):max_capacity (e.g., struct(name:varchar:64,age:int32):100)
     - float_vector:dim (e.g., float_vector:768)
     - binary_vector:dim
     - float16_vector:dim
@@ -25,7 +27,9 @@ Modifiers:
 Examples:
     id:int64:pk:auto
     title:varchar:512
-    tags:array:varchar:100
+    tags:array:varchar:64:100    # varchar array: max_length=64, max_capacity=100
+    scores:array:float:50        # float array: max_capacity=50
+    info:struct(name:varchar:64,age:int32):100  # struct array with max_capacity=100
     embedding:float_vector:768:COSINE
     content:varchar:65535:nullable
 """
@@ -87,7 +91,8 @@ class FieldSpec:
     dim: int | None = None  # for vectors
     metric_type: str | None = None  # for vectors
     element_type: DataType | None = None  # for array
-    max_capacity: int | None = None  # for array
+    max_capacity: int | None = None  # for array and struct
+    struct_fields: list["FieldSpec"] | None = None  # for struct
     extra_params: dict = field(default_factory=dict)
 
 
@@ -97,11 +102,204 @@ class SchemaParseError(Exception):
     pass
 
 
+def _parse_struct_inner_fields(inner_str: str) -> list[FieldSpec]:
+    """Parse comma-separated fields inside struct(...).
+
+    Handles nested colons in field definitions like 'name:varchar:64,age:int32'.
+
+    Args:
+        inner_str: The content inside struct(...), e.g., "name:varchar:64,age:int32"
+
+    Returns:
+        List of parsed FieldSpec for struct sub-fields
+    """
+    if not inner_str.strip():
+        raise SchemaParseError("Struct must have at least one field")
+
+    fields = []
+    for field_def in inner_str.split(","):
+        field_def = field_def.strip()
+        if not field_def:
+            continue
+        # Parse each sub-field (without pk/auto modifiers)
+        spec = _parse_struct_subfield(field_def)
+        fields.append(spec)
+
+    if not fields:
+        raise SchemaParseError("Struct must have at least one field")
+
+    return fields
+
+
+def _parse_struct_subfield(field_str: str) -> FieldSpec:
+    """Parse a single struct sub-field.
+
+    Struct sub-fields cannot have pk, auto modifiers.
+    Supported types: scalar types, varchar, array (no nested struct).
+
+    Args:
+        field_str: Field definition like "name:varchar:64" or "age:int32"
+
+    Returns:
+        Parsed FieldSpec
+    """
+    parts = [p.strip() for p in field_str.split(":")]
+
+    if len(parts) < 2:
+        raise SchemaParseError(
+            f"Invalid struct field format: '{field_str}'. Expected 'name:type[:params...]'"
+        )
+
+    name = parts[0]
+    type_name = parts[1].lower()
+
+    if not name:
+        raise SchemaParseError("Struct field name cannot be empty")
+
+    if type_name not in TYPE_MAP:
+        raise SchemaParseError(
+            f"Unknown type '{type_name}' in struct field. Valid types: {', '.join(sorted(TYPE_MAP.keys()))}"
+        )
+
+    # Struct fields cannot contain nested structs
+    if type_name == "struct":
+        raise SchemaParseError("Nested struct is not supported")
+
+    data_type = TYPE_MAP[type_name]
+    spec = FieldSpec(name=name, data_type=data_type)
+
+    remaining = parts[2:]
+
+    # Handle type-specific parameters (similar to main parse_field)
+    if data_type == DataType.VARCHAR:
+        if remaining and remaining[0].isdigit():
+            spec.max_length = int(remaining.pop(0))
+        else:
+            spec.max_length = 65535
+
+    elif data_type in VECTOR_TYPES:
+        raise SchemaParseError(f"Vector type '{type_name}' is not supported in struct fields")
+
+    elif data_type == DataType.SPARSE_FLOAT_VECTOR:
+        raise SchemaParseError("Sparse vector is not supported in struct fields")
+
+    elif data_type == DataType.ARRAY:
+        if not remaining:
+            raise SchemaParseError(
+                f"Array field '{name}' in struct requires element type"
+            )
+        elem_type_name = remaining.pop(0).lower()
+        if elem_type_name not in TYPE_MAP:
+            raise SchemaParseError(f"Unknown array element type '{elem_type_name}'")
+        if elem_type_name == "struct":
+            raise SchemaParseError("Array of struct is not supported in struct fields")
+        spec.element_type = TYPE_MAP[elem_type_name]
+
+        if spec.element_type == DataType.VARCHAR:
+            if remaining and remaining[0].isdigit():
+                spec.max_length = int(remaining.pop(0))
+            else:
+                spec.max_length = 65535
+            if remaining and remaining[0].isdigit():
+                spec.max_capacity = int(remaining.pop(0))
+            else:
+                spec.max_capacity = 4096
+        else:
+            if remaining and remaining[0].isdigit():
+                spec.max_capacity = int(remaining.pop(0))
+            else:
+                spec.max_capacity = 4096
+
+    # Struct sub-fields cannot have pk, auto, nullable modifiers
+    for part in remaining:
+        part_lower = part.lower()
+        if part_lower in ("pk", "auto", "nullable"):
+            raise SchemaParseError(
+                f"Modifier '{part}' is not allowed in struct sub-fields"
+            )
+        else:
+            raise SchemaParseError(f"Unknown modifier '{part}' in struct field")
+
+    return spec
+
+
+def _parse_struct_field(field_str: str) -> FieldSpec:
+    """Parse a struct field with syntax: name:struct(field1:type1,field2:type2):max_capacity[:modifiers].
+
+    Args:
+        field_str: Struct field definition, e.g., "info:struct(name:varchar:64,age:int32):100"
+
+    Returns:
+        Parsed FieldSpec with struct_fields populated
+
+    Raises:
+        SchemaParseError: If the field string is invalid
+    """
+    import re
+
+    # Pattern: name:struct(inner_fields):rest
+    # We need to extract: name, inner content, and remaining params
+    match = re.match(r"^([^:]+):struct\(([^)]*)\)(.*)$", field_str)
+    if not match:
+        raise SchemaParseError(
+            f"Invalid struct format: '{field_str}'. "
+            "Expected 'name:struct(field1:type1,field2:type2)[:max_capacity][:modifiers]'"
+        )
+
+    name = match.group(1).strip()
+    inner_content = match.group(2).strip()
+    rest = match.group(3).strip()
+
+    if not name:
+        raise SchemaParseError("Field name cannot be empty")
+
+    # Parse inner struct fields
+    struct_fields = _parse_struct_inner_fields(inner_content)
+
+    # Create the FieldSpec for the struct
+    # Note: pymilvus uses _ARRAY_OF_STRUCT for struct arrays
+    spec = FieldSpec(
+        name=name,
+        data_type=DataType.ARRAY,  # Struct is stored as ARRAY type internally
+        struct_fields=struct_fields,
+    )
+
+    # Parse remaining params (after the closing parenthesis)
+    # rest could be ":100:nullable" or ":100" or ""
+    if rest:
+        if rest.startswith(":"):
+            rest = rest[1:]  # Remove leading colon
+        remaining = [p.strip() for p in rest.split(":") if p.strip()]
+
+        # First number is max_capacity
+        if remaining and remaining[0].isdigit():
+            spec.max_capacity = int(remaining.pop(0))
+        else:
+            spec.max_capacity = 4096  # default
+
+        # Parse modifiers
+        for part in remaining:
+            part_lower = part.lower()
+            if part_lower == "nullable":
+                spec.nullable = True
+            elif part_lower in ("pk", "auto"):
+                raise SchemaParseError(
+                    f"Modifier '{part}' is not allowed on struct fields"
+                )
+            else:
+                raise SchemaParseError(f"Unknown modifier '{part}'")
+    else:
+        spec.max_capacity = 4096  # default
+
+    return spec
+
+
 def parse_field(field_str: str) -> FieldSpec:
     """Parse a field DSL string into a FieldSpec.
 
     Args:
         field_str: Field definition string, e.g., "id:int64:pk:auto"
+            For struct: "info:struct(name:varchar:64,age:int32):100"
 
     Returns:
         Parsed FieldSpec object
@@ -109,6 +307,10 @@ def parse_field(field_str: str) -> FieldSpec:
     Raises:
         SchemaParseError: If the field string is invalid
     """
+    # Check for struct type with special syntax: name:struct(fields...):params
+    if ":struct(" in field_str:
+        return _parse_struct_field(field_str)
+
     parts = [p.strip() for p in field_str.split(":")]
 
     if len(parts) < 2:
@@ -150,6 +352,8 @@ def parse_field(field_str: str) -> FieldSpec:
 
     elif data_type == DataType.ARRAY:
         # array requires element_type and optionally max_capacity
+        # For varchar element type, max_length is also required
+        # Syntax: array:elem_type:max_capacity or array:varchar:max_length:max_capacity
         if not remaining:
             raise SchemaParseError(
                 f"Array field '{name}' requires element type, e.g., '{name}:array:int64:100'"
@@ -159,11 +363,23 @@ def parse_field(field_str: str) -> FieldSpec:
             raise SchemaParseError(f"Unknown array element type '{elem_type_name}'")
         spec.element_type = TYPE_MAP[elem_type_name]
 
-        # max_capacity is optional
-        if remaining and remaining[0].isdigit():
-            spec.max_capacity = int(remaining.pop(0))
+        # For varchar element type, first number is max_length, second is max_capacity
+        if spec.element_type == DataType.VARCHAR:
+            if remaining and remaining[0].isdigit():
+                spec.max_length = int(remaining.pop(0))
+            else:
+                spec.max_length = 65535  # default max_length for varchar elements
+
+            if remaining and remaining[0].isdigit():
+                spec.max_capacity = int(remaining.pop(0))
+            else:
+                spec.max_capacity = 4096  # default max_capacity
         else:
-            spec.max_capacity = 4096  # default
+            # For other element types, number is max_capacity
+            if remaining and remaining[0].isdigit():
+                spec.max_capacity = int(remaining.pop(0))
+            else:
+                spec.max_capacity = 4096  # default
 
     # Parse modifiers
     for part in remaining:
@@ -229,6 +445,43 @@ def parse_fields(field_strs: list[str]) -> list[FieldSpec]:
     return specs
 
 
+def _build_struct_field_schema(spec: FieldSpec) -> Any:
+    """Build a StructFieldSchema from a FieldSpec with struct_fields.
+
+    Args:
+        spec: FieldSpec with struct_fields populated
+
+    Returns:
+        StructFieldSchema object
+    """
+    from pymilvus import FieldSchema
+    from pymilvus.orm.schema import StructFieldSchema
+
+    struct_schema = StructFieldSchema()
+    struct_schema.name = spec.name
+    struct_schema.max_capacity = spec.max_capacity or 4096
+
+    # Add sub-fields to the struct
+    for sub_spec in spec.struct_fields or []:
+        sub_params: dict[str, Any] = {}
+
+        if sub_spec.max_length is not None:
+            sub_params["max_length"] = sub_spec.max_length
+        if sub_spec.element_type is not None:
+            sub_params["element_type"] = sub_spec.element_type
+        if sub_spec.max_capacity is not None:
+            sub_params["max_capacity"] = sub_spec.max_capacity
+
+        sub_field = FieldSchema(
+            name=sub_spec.name,
+            dtype=sub_spec.data_type,
+            **sub_params,
+        )
+        struct_schema._fields.append(sub_field)
+
+    return struct_schema
+
+
 def build_schema(specs: list[FieldSpec], enable_dynamic: bool = True) -> Any:
     """Build a Milvus CollectionSchema from parsed field specs.
 
@@ -242,9 +495,16 @@ def build_schema(specs: list[FieldSpec], enable_dynamic: bool = True) -> Any:
     from pymilvus import CollectionSchema, FieldSchema
 
     fields = []
+    struct_fields = []
     auto_id = False
 
     for spec in specs:
+        # Handle struct fields separately
+        if spec.struct_fields is not None:
+            struct_schema = _build_struct_field_schema(spec)
+            struct_fields.append(struct_schema)
+            continue
+
         params: dict[str, Any] = {}
 
         if spec.max_length is not None:
@@ -272,6 +532,7 @@ def build_schema(specs: list[FieldSpec], enable_dynamic: bool = True) -> Any:
 
     schema = CollectionSchema(
         fields=fields,
+        struct_fields=struct_fields if struct_fields else None,
         auto_id=auto_id,
         enable_dynamic_field=enable_dynamic,
     )
@@ -313,6 +574,8 @@ Types:
   String:     varchar:max_len (e.g., varchar:256)
   JSON:       json
   Array:      array:elem_type:max_cap (e.g., array:int64:100)
+              array:varchar:max_len:max_cap (e.g., array:varchar:64:100)
+  Struct:     struct(field1:type1,field2:type2):max_cap
   Vector:     float_vector:dim, binary_vector:dim,
               float16_vector:dim, bfloat16_vector:dim, sparse_vector
 
@@ -327,5 +590,7 @@ Examples:
   title:varchar:512             String field, max 512 chars
   embedding:float_vector:768    768-dim vector with COSINE (default)
   vec:float_vector:128:L2       128-dim vector with L2 metric
-  tags:array:varchar:100        Array of strings, max 100 elements
+  scores:array:int64:100        Array of int64, max 100 elements
+  tags:array:varchar:64:100     Array of varchar (max 64 chars each), max 100 elements
+  info:struct(name:varchar:64,age:int32):100  Struct array, max 100 elements
 """
