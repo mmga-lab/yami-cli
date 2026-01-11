@@ -62,9 +62,21 @@ yami query get <collection> 1,2,3
 
 With `YAMI_MODE=agent` or `--mode agent`:
 
-```json
-{"status": "success", "data": {...}}
-{"error": {"code": "ERROR", "message": "..."}}
+```bash
+# Data queries return JSON directly (array or object)
+yami --mode agent collection list
+# Output: ["collection1", "collection2", ...]
+
+yami --mode agent collection describe my_col
+# Output: {"collection_name": "my_col", "fields": [...], ...}
+
+# Operations return status message
+yami --mode agent collection drop my_col --force
+# Output: {"status": "success", "message": "Collection 'my_col' dropped successfully"}
+
+# Errors return structured error
+yami --mode agent collection describe nonexistent
+# Output: {"error": {"code": "ERROR", "message": "..."}}
 ```
 
 ## Complete Reference

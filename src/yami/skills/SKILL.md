@@ -69,21 +69,25 @@ yami --mode agent collection drop <name> --force
 
 ## Output Format
 
-In agent mode, all output is JSON:
+In agent mode (`--mode agent` or `YAMI_MODE=agent`):
 
-**Success:**
-```json
-{"status": "success", "message": "...", "data": {...}}
+**Data queries return JSON directly:**
+```bash
+yami --mode agent collection list
+# ["collection1", "collection2", ...]
+
+yami --mode agent collection describe my_col
+# {"collection_name": "my_col", "fields": [...], ...}
 ```
 
-**Error:**
+**Operations return status:**
+```json
+{"status": "success", "message": "Collection 'my_col' dropped successfully"}
+```
+
+**Errors return structured error:**
 ```json
 {"error": {"code": "ERROR", "message": "..."}}
-```
-
-**Data:**
-```json
-[{"id": 1, "name": "..."}, ...]
 ```
 
 ## Global Options

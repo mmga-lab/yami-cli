@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 import typer
@@ -174,6 +175,10 @@ def main_callback(
         cli_ctx.quiet = quiet
 
     set_context(cli_ctx)
+
+    # Suppress pymilvus logs in agent mode
+    if cli_ctx.is_agent_mode:
+        logging.getLogger("pymilvus").setLevel(logging.CRITICAL)
 
     # Store in typer context for subcommands
     ctx.ensure_object(dict)
