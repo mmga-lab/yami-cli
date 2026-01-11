@@ -9,6 +9,8 @@ from typing import Any
 import yaml
 from rich.console import Console
 
+from yami.output.envelope import ErrorInfo, ResponseMeta, error_envelope, success_envelope
+
 # Default consoles (for human mode)
 _console: Console | None = None
 _stderr_console: Console | None = None
@@ -82,9 +84,17 @@ def format_output(
         print_table(data, title)
 
 
-def print_json(data: Any) -> None:
-    """Print data as JSON."""
-    _get_console().print_json(json.dumps(data, indent=2, default=str, ensure_ascii=False))
+def print_json(data: Any, meta: ResponseMeta | None = None) -> None:
+    """Print data as JSON with unified envelope format.
+
+    In Agent mode, wraps data in envelope: {"ok": true, "data": <data>, "meta": {...}}
+    """
+    if _is_agent_mode():
+        envelope = success_envelope(data, meta)
+        output = envelope.to_json()
+    else:
+        output = json.dumps(data, indent=2, default=str, ensure_ascii=False)
+    _get_console().print_json(output)
 
 
 def print_yaml(data: Any) -> None:
@@ -169,37 +179,48 @@ def _print_dict_table(data: dict, title: str = "") -> None:
     _get_console().print(table)
 
 
-def print_success(message: str, data: dict | None = None) -> None:
+def print_success(
+    message: str,
+    data: dict | None = None,
+    meta: ResponseMeta | None = None,
+) -> None:
     """Print a success message.
 
-    In JSON mode, outputs structured response.
+    In JSON mode, outputs structured envelope response.
     In quiet mode, suppresses output unless data is provided.
     """
     output_format = _get_output_format()
     quiet = _is_quiet()
 
     if output_format == "json":
-        result = {"status": "success", "message": message}
-        if data:
-            result["data"] = data
-        _get_console().print_json(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        result_data = data if data else {"message": message}
+        envelope = success_envelope(result_data, meta)
+        _get_console().print_json(envelope.to_json())
     elif not quiet:
         _get_console().print(f"[green]{message}[/green]")
 
 
-def print_error(message: str, code: str = "ERROR") -> None:
+def print_error(
+    message: str,
+    code: str = "UNKNOWN_ERROR",
+    hint: str | None = None,
+    meta: ResponseMeta | None = None,
+) -> None:
     """Print an error message.
 
-    In JSON mode, outputs structured error to stdout.
+    In JSON mode, outputs structured error envelope to stdout.
     Otherwise outputs to stderr for clean stdout.
     """
     output_format = _get_output_format()
 
     if output_format == "json":
-        error_data = {"error": {"code": code, "message": message}}
-        _get_console().print_json(json.dumps(error_data, indent=2, ensure_ascii=False))
+        envelope = error_envelope(code, message, hint, meta)
+        _get_console().print_json(envelope.to_json())
     else:
-        _get_stderr_console().print(f"[red]Error:[/red] {message}")
+        error_msg = f"[red]Error:[/red] {message}"
+        if hint:
+            error_msg += f"\n[dim]Hint: {hint}[/dim]"
+        _get_stderr_console().print(error_msg)
 
 
 def print_warning(message: str) -> None:

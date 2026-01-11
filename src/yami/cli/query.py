@@ -8,6 +8,7 @@ from typing import List, Optional
 import typer
 
 from yami.core.context import get_context
+from yami.errors import ErrorCode, classify_exception
 from yami.output.formatter import format_output, print_error, print_info
 
 app = typer.Typer(no_args_is_help=True)
@@ -168,10 +169,10 @@ def search(
         ])
 
         if sources == 0:
-            print_error("Must specify one of: --vector, --sql, or --random")
+            print_error("Must specify one of: --vector, --sql, or --random", code=ErrorCode.MISSING_ARGUMENT.value)
             raise typer.Exit(1)
         if sources > 1:
-            print_error("Only one vector source allowed")
+            print_error("Only one vector source allowed", code=ErrorCode.VALIDATION_ERROR.value)
             raise typer.Exit(1)
 
         if vector:
@@ -183,7 +184,7 @@ def search(
             # DuckDB SQL query
             query_vectors = _get_vectors_from_sql(sql)
             if not query_vectors:
-                print_error("SQL query returned no vectors")
+                print_error("SQL query returned no vectors", code=ErrorCode.DATA_ERROR.value)
                 raise typer.Exit(1)
             print_info(f"Loaded {len(query_vectors)} vector(s) from SQL query")
 
@@ -239,10 +240,11 @@ def search(
             format_output([], ctx.output, title="Search Results")
 
     except json.JSONDecodeError as e:
-        print_error(f"Invalid JSON: {e}")
+        print_error(f"Invalid JSON: {e}", code=ErrorCode.INVALID_FORMAT.value)
         raise typer.Exit(1)
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)
 
 
@@ -282,7 +284,7 @@ def query_cmd(
 ) -> None:
     """Query data using filter expression or IDs."""
     if not filter_expr and not ids:
-        print_error("Either --filter or --ids is required")
+        print_error("Either --filter or --ids is required", code=ErrorCode.MISSING_ARGUMENT.value)
         raise typer.Exit(1)
 
     ctx = get_context()
@@ -326,7 +328,8 @@ def query_cmd(
         format_output(results, ctx.output, title="Query Results")
 
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)
 
 
@@ -379,7 +382,8 @@ def get(
         format_output(results, ctx.output, title="Get Results")
 
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)
 
 
@@ -511,11 +515,11 @@ def hybrid_search(
             for r in req:
                 requests_data.append(json.loads(r))
         else:
-            print_error("Either --req or --sql is required")
+            print_error("Either --req or --sql is required", code=ErrorCode.MISSING_ARGUMENT.value)
             raise typer.Exit(1)
 
         if len(requests_data) < 1:
-            print_error("At least one search request is required")
+            print_error("At least one search request is required", code=ErrorCode.VALIDATION_ERROR.value)
             raise typer.Exit(1)
 
         # Build AnnSearchRequest objects
@@ -528,10 +532,10 @@ def hybrid_search(
             params = r.get("params", {})
 
             if not field:
-                print_error("Each request must have a 'field' key")
+                print_error("Each request must have a 'field' key", code=ErrorCode.VALIDATION_ERROR.value)
                 raise typer.Exit(1)
             if vector is None:
-                print_error(f"Request for field '{field}' must have a 'vector' key")
+                print_error(f"Request for field '{field}' must have a 'vector' key", code=ErrorCode.VALIDATION_ERROR.value)
                 raise typer.Exit(1)
 
             ann_req = AnnSearchRequest(
@@ -553,8 +557,8 @@ def hybrid_search(
 
             if len(weight_list) != len(ann_requests):
                 print_error(
-                    f"Number of weights ({len(weight_list)}) must match "
-                    f"number of requests ({len(ann_requests)})"
+                    f"Number of weights ({len(weight_list)}) must match number of requests ({len(ann_requests)})",
+                    code=ErrorCode.VALIDATION_ERROR.value,
                 )
                 raise typer.Exit(1)
 
@@ -597,8 +601,9 @@ def hybrid_search(
             format_output([], ctx.output, title="Hybrid Search Results")
 
     except json.JSONDecodeError as e:
-        print_error(f"Invalid JSON: {e}")
+        print_error(f"Invalid JSON: {e}", code=ErrorCode.INVALID_FORMAT.value)
         raise typer.Exit(1)
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)

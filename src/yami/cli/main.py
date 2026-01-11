@@ -28,7 +28,8 @@ from yami.cli import (
     skill,
     user,
 )
-from yami.core.context import CLIContext, reset_context, set_context
+from yami.core.context import CLIContext, get_context, reset_context, set_context
+from yami.errors import classify_exception
 from yami.output.formatter import print_error, print_success
 from yami.version import __version__
 
@@ -176,6 +177,12 @@ def main_callback(
 
     set_context(cli_ctx)
 
+    # Start operation tracking with full command
+    if ctx.invoked_subcommand:
+        # Build command string from invoked subcommand
+        command = ctx.invoked_subcommand
+        cli_ctx.start_operation(command)
+
     # Suppress pymilvus logs in agent mode
     if cli_ctx.is_agent_mode:
         logging.getLogger("pymilvus").setLevel(logging.CRITICAL)
@@ -207,14 +214,21 @@ def connect(
     """Test connection to Milvus server."""
     from yami.core.client import YamiClient
 
+    ctx = get_context()
+    ctx.start_operation("connect")
+
     try:
         client = YamiClient(uri=uri, token=token, db_name=db)
         version = client.get_server_version()
         client.close()
-        print_success(f"Connected to Milvus at {uri}")
-        console.print(f"Server version: {version}")
+        print_success(
+            f"Connected to Milvus at {uri}",
+            data={"uri": uri, "version": version},
+            meta=ctx.get_operation_meta(),
+        )
     except Exception as e:
-        print_error(f"Failed to connect: {e}")
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint, meta=ctx.get_operation_meta())
         raise typer.Exit(1)
 
 

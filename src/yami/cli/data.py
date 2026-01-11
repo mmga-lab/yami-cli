@@ -8,6 +8,7 @@ from typing import Optional
 import typer
 
 from yami.core.context import get_context
+from yami.errors import ErrorCode, classify_exception
 from yami.output.formatter import format_output, print_error, print_info, print_success
 
 app = typer.Typer(no_args_is_help=True)
@@ -99,7 +100,7 @@ def insert(
             parsed = json.loads(data_json)
             data = [parsed] if isinstance(parsed, dict) else parsed
         else:
-            print_error("Either --sql or --data is required")
+            print_error("Either --sql or --data is required", code=ErrorCode.MISSING_ARGUMENT.value)
             raise typer.Exit(1)
 
         # Insert in batches for large data
@@ -123,16 +124,17 @@ def insert(
             )
             format_output(result, ctx.output, title="Insert Result")
     except FileNotFoundError as e:
-        print_error(str(e))
+        print_error(str(e), code=ErrorCode.FILE_NOT_FOUND.value, hint="Check if the file path is correct")
         raise typer.Exit(1)
     except json.JSONDecodeError as e:
-        print_error(f"Invalid JSON: {e}")
+        print_error(f"Invalid JSON: {e}", code=ErrorCode.INVALID_FORMAT.value)
         raise typer.Exit(1)
     except ImportError as e:
-        print_error(str(e))
+        print_error(str(e), code=ErrorCode.IMPORT_ERROR.value)
         raise typer.Exit(1)
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)
 
 
@@ -196,7 +198,7 @@ def upsert(
             parsed = json.loads(data_json)
             data = [parsed] if isinstance(parsed, dict) else parsed
         else:
-            print_error("Either --sql or --data is required")
+            print_error("Either --sql or --data is required", code=ErrorCode.MISSING_ARGUMENT.value)
             raise typer.Exit(1)
 
         # Upsert in batches for large data
@@ -220,16 +222,17 @@ def upsert(
             )
             format_output(result, ctx.output, title="Upsert Result")
     except FileNotFoundError as e:
-        print_error(str(e))
+        print_error(str(e), code=ErrorCode.FILE_NOT_FOUND.value, hint="Check if the file path is correct")
         raise typer.Exit(1)
     except json.JSONDecodeError as e:
-        print_error(f"Invalid JSON: {e}")
+        print_error(f"Invalid JSON: {e}", code=ErrorCode.INVALID_FORMAT.value)
         raise typer.Exit(1)
     except ImportError as e:
-        print_error(str(e))
+        print_error(str(e), code=ErrorCode.IMPORT_ERROR.value)
         raise typer.Exit(1)
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)
 
 
@@ -265,7 +268,7 @@ def delete(
     Delete by IDs (--ids) or by filter expression (--filter).
     """
     if not ids and not filter_expr:
-        print_error("Either --ids or --filter is required")
+        print_error("Either --ids or --filter is required", code=ErrorCode.MISSING_ARGUMENT.value)
         raise typer.Exit(1)
 
     if not force:
@@ -299,5 +302,6 @@ def delete(
         result = client.delete(**kwargs)
         format_output(result, ctx.output, title="Delete Result")
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)
