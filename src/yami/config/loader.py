@@ -38,7 +38,7 @@ def load_config() -> YamiConfig:
         default_profile=defaults.get("profile", ""),
         default_output=defaults.get("output", "table"),
         timeout=defaults.get("timeout", 30.0),
-        mode=defaults.get("mode", "human"),
+        mode=defaults.get("mode", "agent"),
     )
 
 

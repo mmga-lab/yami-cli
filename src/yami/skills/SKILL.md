@@ -5,17 +5,7 @@ description: Use yami CLI for Milvus vector database operations. Trigger when us
 
 # Yami - Milvus CLI Tool
 
-Yami is a command-line interface for Milvus vector database. Use `--mode agent` for structured JSON output.
-
-## Quick Start
-
-```bash
-# Always use agent mode for structured output
-yami --mode agent <command>
-
-# Or set default mode
-export YAMI_MODE=agent
-```
+Yami is a command-line interface for Milvus vector database. Default output is JSON (agent mode).
 
 ## Command Reference
 
@@ -25,58 +15,58 @@ See [REFERENCE.md](./REFERENCE.md) for complete command documentation.
 
 ### List Collections
 ```bash
-yami --mode agent collection list
+yami collection list
 ```
 
 ### Create Collection
 ```bash
-yami --mode agent collection create <name> --dim <dimension> [--metric COSINE|L2|IP]
+yami collection create <name> --dim <dimension> [--metric COSINE|L2|IP]
 ```
 
 ### Describe Collection
 ```bash
-yami --mode agent collection describe <name>
+yami collection describe <name>
 ```
 
 ### Insert Data
 ```bash
 # From Parquet file
-yami --mode agent data insert <collection> --sql "SELECT * FROM 'data.parquet'"
+yami data insert <collection> --sql "SELECT * FROM 'data.parquet'"
 
 # From JSON file
-yami --mode agent data insert <collection> --sql "SELECT * FROM read_json('data.json')"
+yami data insert <collection> --sql "SELECT * FROM read_json('data.json')"
 ```
 
 ### Vector Search
 ```bash
 # Random vector for testing
-yami --mode agent query search <collection> --random --limit 10
+yami query search <collection> --random --limit 10
 
 # With filter
-yami --mode agent query search <collection> --random --filter "category == 'A'" --limit 10
+yami query search <collection> --random --filter "category == 'A'" --limit 10
 ```
 
 ### Scalar Query
 ```bash
-yami --mode agent query query <collection> --filter "id > 100" --limit 10
-yami --mode agent query get <collection> 1,2,3
+yami query query <collection> --filter "id > 100" --limit 10
+yami query get <collection> 1,2,3
 ```
 
 ### Drop Collection
 ```bash
-yami --mode agent collection drop <name> --force
+yami collection drop <name> --force
 ```
 
 ## Output Format
 
-In agent mode (`--mode agent` or `YAMI_MODE=agent`):
+Default is agent mode (JSON output):
 
 **Data queries return JSON directly:**
 ```bash
-yami --mode agent collection list
+yami collection list
 # ["collection1", "collection2", ...]
 
-yami --mode agent collection describe my_col
+yami collection describe my_col
 # {"collection_name": "my_col", "fields": [...], ...}
 ```
 
@@ -90,11 +80,13 @@ yami --mode agent collection describe my_col
 {"error": {"code": "ERROR", "message": "..."}}
 ```
 
+For human-readable table output, use `--mode human` or `YAMI_MODE=human`.
+
 ## Global Options
 
 | Option | Description |
 |--------|-------------|
-| `--mode agent` | Enable agent-friendly JSON output |
+| `--mode human` | Enable human-readable table output |
 | `--uri <uri>` | Milvus server URI |
 | `--token <token>` | Authentication token |
 | `--force` | Skip confirmation prompts |

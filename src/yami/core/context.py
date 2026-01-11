@@ -17,7 +17,7 @@ class CLIContext:
     token: str | None = None
     db: str | None = None
     profile: str | None = None
-    mode: str = "human"  # "human" or "agent"
+    mode: str = "agent"  # "agent" (default) or "human"
     # These can be overridden, but default based on mode
     _output: str | None = None
     _quiet: bool | None = None

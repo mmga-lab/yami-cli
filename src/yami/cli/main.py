@@ -84,7 +84,7 @@ def _get_default_mode() -> str:
         config = load_config()
         return config.mode
     except Exception:
-        return "human"
+        return "agent"
 
 
 @app.callback(invoke_without_command=True)
@@ -148,8 +148,8 @@ def main_callback(
     A powerful CLI tool for managing Milvus vector database.
 
     Modes:
-      human  - Table output with colors (default)
-      agent  - JSON output, no colors, quiet mode
+      agent  - JSON output, no colors, quiet mode (default)
+      human  - Table output with colors
     """
     # If no command is invoked, show help
     if ctx.invoked_subcommand is None:

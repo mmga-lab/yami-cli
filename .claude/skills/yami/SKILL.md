@@ -5,14 +5,7 @@ description: Use yami CLI for Milvus vector database operations. Trigger when us
 
 # Yami - Milvus CLI Tool
 
-Yami is a command-line interface for Milvus vector database.
-
-## Setup (Optional)
-
-```bash
-# Set environment variable for JSON output
-export YAMI_MODE=agent
-```
+Yami is a command-line interface for Milvus vector database. Default output is JSON (agent mode).
 
 ## Common Operations
 
@@ -60,23 +53,30 @@ yami query get <collection> 1,2,3
 
 ## Output Format
 
-With `YAMI_MODE=agent` or `--mode agent`:
+Default is agent mode (JSON output):
 
 ```bash
-# Data queries return JSON directly (array or object)
-yami --mode agent collection list
-# Output: ["collection1", "collection2", ...]
+# Data queries return JSON directly
+yami collection list
+# ["collection1", "collection2", ...]
 
-yami --mode agent collection describe my_col
-# Output: {"collection_name": "my_col", "fields": [...], ...}
+yami collection describe my_col
+# {"collection_name": "my_col", "fields": [...], ...}
 
-# Operations return status message
-yami --mode agent collection drop my_col --force
-# Output: {"status": "success", "message": "Collection 'my_col' dropped successfully"}
+# Operations return status
+yami collection drop my_col --force
+# {"status": "success", "message": "..."}
 
 # Errors return structured error
-yami --mode agent collection describe nonexistent
-# Output: {"error": {"code": "ERROR", "message": "..."}}
+yami collection describe nonexistent
+# {"error": {"code": "ERROR", "message": "..."}}
+```
+
+For human-readable table output:
+```bash
+yami --mode human collection list
+# Or set environment variable
+export YAMI_MODE=human
 ```
 
 ## Complete Reference
