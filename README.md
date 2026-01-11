@@ -1,15 +1,28 @@
 # Yami - Yet Another Milvus Interface
 
+[![PyPI version](https://badge.fury.io/py/yami-cli.svg)](https://pypi.org/project/yami-cli/)
+[![Python](https://img.shields.io/pypi/pyversions/yami-cli.svg)](https://pypi.org/project/yami-cli/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 A powerful command-line interface for Milvus vector database.
 
 ## Installation
 
 ```bash
-# Using uv
-uv pip install -e .
+# Install from PyPI
+pip install yami-cli
 
-# Using pip
-pip install -e .
+# Or using uv
+uv pip install yami-cli
+```
+
+### Development Installation
+
+```bash
+# Clone and install in development mode
+git clone https://github.com/mmga-lab/yami-cli.git
+cd yami-cli
+uv pip install -e .
 ```
 
 ## Quick Start
