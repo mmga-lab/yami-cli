@@ -50,8 +50,8 @@ dev = [
 yami = "yami.cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/zilliztech/yami-cli"
-Repository = "https://github.com/zilliztech/yami-cli"
+Homepage = "https://github.com/mmga-lab/yami-cli"
+Repository = "https://github.com/mmga-lab/yami-cli"
 
 [tool.hatch.version]
 path = "src/yami/version.py"
