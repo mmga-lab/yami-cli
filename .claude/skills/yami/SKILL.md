@@ -5,92 +5,68 @@ description: Use yami CLI for Milvus vector database operations. Trigger when us
 
 # Yami - Milvus CLI Tool
 
-Yami is a command-line interface for Milvus vector database. Use `--mode agent` for structured JSON output.
+Yami is a command-line interface for Milvus vector database.
 
-## Quick Start
+## Setup (Optional)
 
 ```bash
-# Always use agent mode for structured output
-yami --mode agent <command>
-
-# Or set default mode
+# Set environment variable for JSON output
 export YAMI_MODE=agent
 ```
 
-## Command Reference
-
-See [REFERENCE.md](./REFERENCE.md) for complete command documentation.
-
 ## Common Operations
 
-### List Collections
+### Collection Management
 ```bash
-yami --mode agent collection list
+yami collection list
+yami collection create <name> --dim <dimension> [--metric COSINE|L2|IP]
+yami collection describe <name>
+yami collection has <name>
+yami collection stats <name>
+yami collection drop <name> --force
 ```
 
-### Create Collection
+### Load Collection (required before search)
 ```bash
-yami --mode agent collection create <name> --dim <dimension> [--metric COSINE|L2|IP]
-```
-
-### Describe Collection
-```bash
-yami --mode agent collection describe <name>
+yami load <collection>
 ```
 
 ### Insert Data
-```bash
-# From Parquet file
-yami --mode agent data insert <collection> --sql "SELECT * FROM 'data.parquet'"
 
-# From JSON file
-yami --mode agent data insert <collection> --sql "SELECT * FROM read_json('data.json')"
+```bash
+# From file
+yami data insert <collection> --sql "SELECT * FROM 'data.parquet'"
+yami data insert <collection> --sql "SELECT * FROM read_json('data.json')"
+
+# Random test data (DuckDB SQL)
+# 100 rows, 128-dim vectors:
+yami data insert <collection> --sql "SELECT range AS id, list_transform(generate_series(1, 128), x -> random()) AS vector FROM range(100)"
 ```
 
 ### Vector Search
 ```bash
-# Random vector for testing
-yami --mode agent query search <collection> --random --limit 10
+# Random vector search (specify --dim matching collection)
+yami query search <collection> --random --dim <dimension> --limit 10
 
 # With filter
-yami --mode agent query search <collection> --random --filter "category == 'A'" --limit 10
+yami query search <collection> --random --dim 128 --filter "category == 'A'" --limit 10
 ```
 
 ### Scalar Query
 ```bash
-yami --mode agent query query <collection> --filter "id > 100" --limit 10
-yami --mode agent query get <collection> 1,2,3
-```
-
-### Drop Collection
-```bash
-yami --mode agent collection drop <name> --force
+yami query query <collection> --filter "id >= 0" --limit 100
+yami query get <collection> 1,2,3
 ```
 
 ## Output Format
 
-In agent mode, all output is JSON:
+With `YAMI_MODE=agent` or `--mode agent`:
 
-**Success:**
 ```json
-{"status": "success", "message": "...", "data": {...}}
-```
-
-**Error:**
-```json
+{"status": "success", "data": {...}}
 {"error": {"code": "ERROR", "message": "..."}}
 ```
 
-**Data:**
-```json
-[{"id": 1, "name": "..."}, ...]
-```
+## Complete Reference
 
-## Global Options
-
-| Option | Description |
-|--------|-------------|
-| `--mode agent` | Enable agent-friendly JSON output |
-| `--uri <uri>` | Milvus server URI |
-| `--token <token>` | Authentication token |
-| `--force` | Skip confirmation prompts |
+See [REFERENCE.md](./REFERENCE.md) for all commands.
