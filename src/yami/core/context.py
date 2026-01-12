@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from time import perf_counter
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from yami.core.client import YamiClient
+    from yami.output.envelope import ResponseMeta
 
 
 @dataclass
@@ -24,6 +26,10 @@ class CLIContext:
     timeout: float = 30.0
 
     _client: "YamiClient | None" = field(default=None, repr=False)
+
+    # Operation tracking
+    _operation_start: float = field(default=0.0, repr=False)
+    _operation_command: str = field(default="", repr=False)
 
     @property
     def is_agent_mode(self) -> bool:
@@ -81,6 +87,34 @@ class CLIContext:
         if self._client is not None:
             self._client.close()
             self._client = None
+
+    def start_operation(self, command: str) -> None:
+        """Start tracking an operation.
+
+        Args:
+            command: The command being executed (e.g., "collection list").
+        """
+        self._operation_start = perf_counter()
+        self._operation_command = command
+
+    def get_operation_meta(self, count: int | None = None) -> "ResponseMeta":
+        """Get operation metadata for response envelope.
+
+        Args:
+            count: Optional count of items returned/affected.
+
+        Returns:
+            ResponseMeta with duration and optional count.
+        """
+        from yami.output.envelope import ResponseMeta
+
+        duration_ms = int((perf_counter() - self._operation_start) * 1000) if self._operation_start else 0
+
+        return ResponseMeta(
+            command=self._operation_command if self._operation_command else None,
+            duration_ms=duration_ms if duration_ms > 0 else None,
+            count=count,
+        )
 
 
 # Global context storage

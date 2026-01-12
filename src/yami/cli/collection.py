@@ -16,6 +16,7 @@ from yami.core.schema import (
     parse_field,
     parse_fields,
 )
+from yami.errors import ErrorCode, classify_exception
 from yami.output.formatter import format_output, print_error, print_info, print_success
 
 app = typer.Typer(no_args_is_help=True)
@@ -43,7 +44,8 @@ def describe(
         info = client.describe_collection(name)
         format_output(info, ctx.output, title=f"Collection: {name}")
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)
 
 
@@ -110,7 +112,7 @@ def create(
 
     # Validate name is provided
     if not name:
-        print_error("Collection name is required")
+        print_error("Collection name is required", code=ErrorCode.MISSING_ARGUMENT.value)
         raise typer.Exit(1)
 
     ctx = get_context()
@@ -122,8 +124,7 @@ def create(
             try:
                 specs = parse_fields(fields)
             except SchemaParseError as e:
-                print_error(str(e))
-                print_info("Use --field-help to see field DSL syntax")
+                print_error(str(e), code=ErrorCode.SCHEMA_ERROR.value, hint="Use --field-help to see field DSL syntax")
                 raise typer.Exit(1)
 
             # Build schema and index params
@@ -148,17 +149,19 @@ def create(
             print_success(f"Collection '{name}' created (quick mode, dim={dimension})")
 
         else:
-            print_error("Either --field or --dim is required")
-            print_info("Examples:")
-            print_info("  Quick:  yami collection create my_col --dim 768")
-            print_info("  DSL:    yami collection create my_col -f 'id:int64:pk' -f 'vec:float_vector:768'")
+            print_error(
+                "Either --field or --dim is required",
+                code=ErrorCode.MISSING_ARGUMENT.value,
+                hint="Quick: --dim 768 | DSL: --field 'id:int64:pk' --field 'vec:float_vector:768'",
+            )
             raise typer.Exit(1)
 
     except SchemaParseError as e:
-        print_error(str(e))
+        print_error(str(e), code=ErrorCode.SCHEMA_ERROR.value)
         raise typer.Exit(1)
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)
 
 
@@ -185,7 +188,8 @@ def drop(
         client.drop_collection(name)
         print_success(f"Collection '{name}' dropped successfully")
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)
 
 
@@ -222,7 +226,8 @@ def rename(
         client.rename_collection(old_name, new_name, target_db=target_db or "")
         print_success(f"Collection renamed from '{old_name}' to '{new_name}'")
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)
 
 
@@ -238,7 +243,8 @@ def stats(
         stats_data = client.get_collection_stats(name)
         format_output(stats_data, ctx.output, title=f"Stats: {name}")
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)
 
 
@@ -321,8 +327,9 @@ def add_field(
         print_success(f"Added field '{spec.name}' to collection '{collection}'")
 
     except SchemaParseError as e:
-        print_error(str(e))
+        print_error(str(e), code=ErrorCode.SCHEMA_ERROR.value, hint="Use --field-help in create for syntax")
         raise typer.Exit(1)
     except Exception as e:
-        print_error(str(e))
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint)
         raise typer.Exit(1)

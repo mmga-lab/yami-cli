@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import sys
 from typing import Optional
 
 import typer
@@ -28,7 +30,8 @@ from yami.cli import (
     skill,
     user,
 )
-from yami.core.context import CLIContext, reset_context, set_context
+from yami.core.context import CLIContext, get_context, reset_context, set_context
+from yami.errors import classify_exception
 from yami.output.formatter import print_error, print_success
 from yami.version import __version__
 
@@ -176,6 +179,18 @@ def main_callback(
 
     set_context(cli_ctx)
 
+    # Start operation tracking with full command
+    if ctx.invoked_subcommand:
+        # Build full command path from argv (handles nested commands like "collection list")
+        command = ctx.invoked_subcommand
+        positional_args = [arg for arg in sys.argv[1:] if not arg.startswith('-')]
+        if len(positional_args) >= 2:
+            second_arg = positional_args[1]
+            # Only include if it looks like a subcommand name (simple lowercase word)
+            if re.match(r'^[a-z][a-z0-9_-]*$', second_arg) and len(second_arg) <= 20:
+                command = f"{command} {second_arg}"
+        cli_ctx.start_operation(command)
+
     # Suppress pymilvus logs in agent mode
     if cli_ctx.is_agent_mode:
         logging.getLogger("pymilvus").setLevel(logging.CRITICAL)
@@ -207,14 +222,20 @@ def connect(
     """Test connection to Milvus server."""
     from yami.core.client import YamiClient
 
+    ctx = get_context()
+
     try:
         client = YamiClient(uri=uri, token=token, db_name=db)
         version = client.get_server_version()
         client.close()
-        print_success(f"Connected to Milvus at {uri}")
-        console.print(f"Server version: {version}")
+        print_success(
+            f"Connected to Milvus at {uri}",
+            data={"uri": uri, "version": version},
+            meta=ctx.get_operation_meta(),
+        )
     except Exception as e:
-        print_error(f"Failed to connect: {e}")
+        code, hint = classify_exception(e)
+        print_error(str(e), code=code.value, hint=hint, meta=ctx.get_operation_meta())
         raise typer.Exit(1)
 
 
