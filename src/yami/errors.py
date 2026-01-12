@@ -74,7 +74,7 @@ def classify_exception(e: Exception) -> tuple[ErrorCode, str | None]:
 
     # JSON errors
     if isinstance(e, json.JSONDecodeError):
-        return ErrorCode.INVALID_FORMAT, "Check JSON syntax is valid"
+        return ErrorCode.INVALID_FORMAT, ERROR_HINTS.get(ErrorCode.INVALID_FORMAT)
 
     # Connection errors
     if "connection" in error_msg or "connect" in error_msg:

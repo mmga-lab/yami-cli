@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import sys
 from typing import Optional
 
 import typer
@@ -179,8 +181,14 @@ def main_callback(
 
     # Start operation tracking with full command
     if ctx.invoked_subcommand:
-        # Build command string from invoked subcommand
+        # Build full command path from argv (handles nested commands like "collection list")
         command = ctx.invoked_subcommand
+        positional_args = [arg for arg in sys.argv[1:] if not arg.startswith('-')]
+        if len(positional_args) >= 2:
+            second_arg = positional_args[1]
+            # Only include if it looks like a subcommand name (simple lowercase word)
+            if re.match(r'^[a-z][a-z0-9_-]*$', second_arg) and len(second_arg) <= 20:
+                command = f"{command} {second_arg}"
         cli_ctx.start_operation(command)
 
     # Suppress pymilvus logs in agent mode
@@ -215,7 +223,6 @@ def connect(
     from yami.core.client import YamiClient
 
     ctx = get_context()
-    ctx.start_operation("connect")
 
     try:
         client = YamiClient(uri=uri, token=token, db_name=db)
