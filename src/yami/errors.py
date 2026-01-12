@@ -76,6 +76,10 @@ def classify_exception(e: Exception) -> tuple[ErrorCode, str | None]:
     if isinstance(e, json.JSONDecodeError):
         return ErrorCode.INVALID_FORMAT, ERROR_HINTS.get(ErrorCode.INVALID_FORMAT)
 
+    # Authentication errors (check before connection errors to avoid misclassification)
+    if "authentication" in error_msg or "unauthorized" in error_msg or "unauthenticated" in error_msg:
+        return ErrorCode.AUTHENTICATION_ERROR, ERROR_HINTS[ErrorCode.AUTHENTICATION_ERROR]
+
     # Connection errors
     if "connection" in error_msg or "connect" in error_msg:
         if "timeout" in error_msg:
@@ -84,9 +88,6 @@ def classify_exception(e: Exception) -> tuple[ErrorCode, str | None]:
 
     if "timeout" in error_msg:
         return ErrorCode.TIMEOUT, "Operation timed out, try again or increase timeout"
-
-    if "authentication" in error_msg or "unauthorized" in error_msg or "unauthenticated" in error_msg:
-        return ErrorCode.AUTHENTICATION_ERROR, ERROR_HINTS[ErrorCode.AUTHENTICATION_ERROR]
 
     # Resource errors
     if "not found" in error_msg or "does not exist" in error_msg or "doesn't exist" in error_msg or "can't find" in error_msg:
