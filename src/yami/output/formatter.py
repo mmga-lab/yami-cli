@@ -64,10 +64,21 @@ def _is_quiet() -> bool:
         return False
 
 
+def _get_operation_meta() -> ResponseMeta | None:
+    """Get operation metadata from context if available."""
+    try:
+        from yami.core.context import get_context
+        ctx = get_context()
+        return ctx.get_operation_meta()
+    except Exception:
+        return None
+
+
 def format_output(
     data: dict | list | Any,
     output_format: str = "table",
     title: str = "",
+    meta: ResponseMeta | None = None,
 ) -> None:
     """Format and output data based on specified format.
 
@@ -75,9 +86,13 @@ def format_output(
         data: The data to output.
         output_format: Output format - 'table', 'json', or 'yaml'.
         title: Optional title for table output.
+        meta: Optional operation metadata for JSON envelope.
+              If not provided, automatically retrieved from context.
     """
     if output_format == "json":
-        print_json(data)
+        # Auto-get meta from context if not provided
+        effective_meta = meta if meta is not None else _get_operation_meta()
+        print_json(data, meta=effective_meta)
     elif output_format == "yaml":
         print_yaml(data)
     else:
