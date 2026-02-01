@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 from yami.core.context import get_context
 from yami.output.formatter import print_error, print_info, print_success
@@ -20,18 +19,18 @@ console = Console()
 def export_data(
     collection: str = typer.Argument(..., help="Collection name"),
     output: str = typer.Argument(..., help="Output directory for Parquet files"),
-    filter_expr: Optional[str] = typer.Option(
+    filter_expr: str | None = typer.Option(
         None,
         "--filter",
         "-f",
         help="Filter expression to export subset",
     ),
-    fields: Optional[str] = typer.Option(
+    fields: str | None = typer.Option(
         None,
         "--fields",
         help="Comma-separated fields to export (default: all)",
     ),
-    partition: Optional[str] = typer.Option(
+    partition: str | None = typer.Option(
         None,
         "--partition",
         "-p",
@@ -43,7 +42,7 @@ def export_data(
         "-b",
         help="Rows per Parquet file",
     ),
-    limit: Optional[int] = typer.Option(
+    limit: int | None = typer.Option(
         None,
         "--limit",
         "-l",
@@ -175,7 +174,7 @@ def import_data(
         "-b",
         help="Batch size for inserting",
     ),
-    sql: Optional[str] = typer.Option(
+    sql: str | None = typer.Option(
         None,
         "--sql",
         help="SQL to transform data before import",

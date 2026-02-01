@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 import typer
 
@@ -42,19 +41,19 @@ def _load_data_from_sql(sql: str) -> list[dict]:
 @app.command()
 def insert(
     collection: str = typer.Argument(..., help="Collection name"),
-    sql: Optional[str] = typer.Option(
+    sql: str | None = typer.Option(
         None,
         "--sql",
         "-s",
         help="DuckDB SQL to read data",
     ),
-    data_json: Optional[str] = typer.Option(
+    data_json: str | None = typer.Option(
         None,
         "--data",
         "-d",
         help="JSON data to insert (inline)",
     ),
-    partition: Optional[str] = typer.Option(
+    partition: str | None = typer.Option(
         None,
         "--partition",
         "-p",
@@ -139,19 +138,19 @@ def insert(
 @app.command()
 def upsert(
     collection: str = typer.Argument(..., help="Collection name"),
-    sql: Optional[str] = typer.Option(
+    sql: str | None = typer.Option(
         None,
         "--sql",
         "-s",
         help="DuckDB SQL to read data",
     ),
-    data_json: Optional[str] = typer.Option(
+    data_json: str | None = typer.Option(
         None,
         "--data",
         "-d",
         help="JSON data to upsert (inline)",
     ),
-    partition: Optional[str] = typer.Option(
+    partition: str | None = typer.Option(
         None,
         "--partition",
         "-p",
@@ -236,19 +235,19 @@ def upsert(
 @app.command()
 def delete(
     collection: str = typer.Argument(..., help="Collection name"),
-    ids: Optional[str] = typer.Option(
+    ids: str | None = typer.Option(
         None,
         "--ids",
         "-i",
         help="Comma-separated list of IDs to delete",
     ),
-    filter_expr: Optional[str] = typer.Option(
+    filter_expr: str | None = typer.Option(
         None,
         "--filter",
         "-f",
         help="Filter expression (e.g., 'age > 20')",
     ),
-    partition: Optional[str] = typer.Option(
+    partition: str | None = typer.Option(
         None,
         "--partition",
         "-p",

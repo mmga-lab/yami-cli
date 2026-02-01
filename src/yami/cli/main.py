@@ -9,6 +9,7 @@ from rich.console import Console
 
 from yami.cli import (
     alias,
+    analyzer,
     collection,
     compact,
     completion,
@@ -21,7 +22,10 @@ from yami.cli import (
     io,
     load,
     partition,
+    privilege_group,
     query,
+    replica,
+    resource_group,
     role,
     segment,
     server,
@@ -62,6 +66,10 @@ app.add_typer(segment.app, name="segment", help="Segment information")
 app.add_typer(io.app, name="io", help="Import/Export data")
 app.add_typer(skill.app, name="skill", help="Claude Code skill management")
 app.add_typer(doctor.app, name="doctor", help="Diagnostics and troubleshooting")
+app.add_typer(privilege_group.app, name="privilege-group", help="Privilege group management")
+app.add_typer(resource_group.app, name="resource-group", help="Resource group management")
+app.add_typer(replica.app, name="replica", help="Replica management")
+app.add_typer(analyzer.app, name="analyzer", help="Text analyzer operations")
 
 
 def version_callback(value: bool) -> None:

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 
 from yami.core.context import get_context
@@ -49,7 +47,7 @@ def load_partitions(
 @app.command()
 def release(
     collection: str = typer.Argument(..., help="Collection name"),
-    partitions: Optional[str] = typer.Option(
+    partitions: str | None = typer.Option(
         None,
         "--partitions",
         "-p",
@@ -76,7 +74,7 @@ def release(
 @app.command()
 def state(
     collection: str = typer.Argument(..., help="Collection name"),
-    partition: Optional[str] = typer.Option(
+    partition: str | None = typer.Option(
         None,
         "--partition",
         "-p",

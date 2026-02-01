@@ -10,7 +10,8 @@ Usage:
 """
 
 import anyio
-from claude_agent_sdk import query, ClaudeAgentOptions
+from claude_agent_sdk import ClaudeAgentOptions, query
+
 from yami import get_skill_prompt
 
 

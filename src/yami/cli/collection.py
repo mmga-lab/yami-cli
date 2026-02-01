@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
@@ -17,6 +17,21 @@ from yami.core.schema import (
     parse_fields,
 )
 from yami.output.formatter import format_output, print_error, print_info, print_success
+
+
+def _parse_properties(props: list[str]) -> dict:
+    """Parse property list in key=value format to dict."""
+    result = {}
+    for prop in props:
+        if "=" not in prop:
+            raise ValueError(f"Invalid property format: '{prop}'. Expected 'key=value'")
+        key, value = prop.split("=", 1)
+        # Try to parse as JSON for complex values
+        try:
+            result[key] = json.loads(value)
+        except json.JSONDecodeError:
+            result[key] = value
+    return result
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -51,14 +66,14 @@ def describe(
 def create(
     name: str = typer.Argument(None, help="Collection name"),
     fields: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Option(
             "--field",
             "-f",
             help="Field definition (can be repeated). Format: name:type[:param][:modifier...]",
         ),
     ] = None,
-    dimension: Optional[int] = typer.Option(
+    dimension: int | None = typer.Option(
         None,
         "--dim",
         "-d",
@@ -151,7 +166,7 @@ def create(
             print_error("Either --field or --dim is required")
             print_info("Examples:")
             print_info("  Quick:  yami collection create my_col --dim 768")
-            print_info("  DSL:    yami collection create my_col -f 'id:int64:pk' -f 'vec:float_vector:768'")
+            print_info("  DSL:    yami collection create my_col -f id:int64:pk -f vec:float_vector:768")
             raise typer.Exit(1)
 
     except SchemaParseError as e:
@@ -208,7 +223,7 @@ def has(
 def rename(
     old_name: str = typer.Argument(..., help="Current collection name"),
     new_name: str = typer.Argument(..., help="New collection name"),
-    target_db: Optional[str] = typer.Option(
+    target_db: str | None = typer.Option(
         None,
         "--target-db",
         help="Target database (for cross-database rename)",
@@ -249,7 +264,7 @@ def add_field(
         ...,
         help="Field definition (e.g., 'score:int64', 'tags:array:varchar:100')",
     ),
-    default: Optional[str] = typer.Option(
+    default: str | None = typer.Option(
         None,
         "--default",
         "-d",
@@ -323,6 +338,218 @@ def add_field(
     except SchemaParseError as e:
         print_error(str(e))
         raise typer.Exit(1)
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command()
+def truncate(
+    name: str = typer.Argument(..., help="Collection name"),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Skip confirmation prompt",
+    ),
+) -> None:
+    """Truncate a collection (delete all data but keep schema).
+
+    \b
+    This operation removes all entities from the collection while
+    preserving the collection schema and indexes.
+    """
+    if not force:
+        confirm = typer.confirm(
+            f"Are you sure you want to truncate collection '{name}'? All data will be deleted."
+        )
+        if not confirm:
+            raise typer.Abort()
+
+    ctx = get_context()
+    client = ctx.get_client()
+
+    try:
+        client.truncate_collection(name)
+        print_success(f"Collection '{name}' truncated successfully")
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command("alter-properties")
+def alter_properties(
+    name: str = typer.Argument(..., help="Collection name"),
+    props: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--prop",
+            "-p",
+            help="Property in key=value format (can be repeated)",
+        ),
+    ] = None,
+) -> None:
+    """Alter collection properties.
+
+    \b
+    Examples:
+      yami collection alter-properties my_col -p collection.ttl.seconds=86400
+      yami collection alter-properties my_col -p mmap.enabled=true
+    """
+    if not props:
+        print_error("At least one --prop is required")
+        raise typer.Exit(1)
+
+    ctx = get_context()
+    client = ctx.get_client()
+
+    try:
+        properties = _parse_properties(props)
+        client.alter_collection_properties(collection_name=name, properties=properties)
+        print_success(f"Updated {len(properties)} property(ies) on collection '{name}'")
+    except ValueError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command("drop-properties")
+def drop_properties(
+    name: str = typer.Argument(..., help="Collection name"),
+    keys: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--key",
+            "-k",
+            help="Property key to drop (can be repeated)",
+        ),
+    ] = None,
+) -> None:
+    """Drop collection properties.
+
+    \b
+    Examples:
+      yami collection drop-properties my_col -k collection.ttl.seconds
+      yami collection drop-properties my_col -k mmap.enabled -k lazyload.enabled
+    """
+    if not keys:
+        print_error("At least one --key is required")
+        raise typer.Exit(1)
+
+    ctx = get_context()
+    client = ctx.get_client()
+
+    try:
+        client.drop_collection_properties(collection_name=name, property_keys=keys)
+        print_success(f"Dropped {len(keys)} property(ies) from collection '{name}'")
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command("alter-field")
+def alter_field(
+    collection: str = typer.Argument(..., help="Collection name"),
+    field: str = typer.Argument(..., help="Field name"),
+    props: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--prop",
+            "-p",
+            help="Property in key=value format (can be repeated)",
+        ),
+    ] = None,
+) -> None:
+    """Alter a field's properties in a collection.
+
+    \b
+    Examples:
+      yami collection alter-field my_col my_field -p mmap.enabled=true
+      yami collection alter-field my_col embedding -p index_type=HNSW
+    """
+    if not props:
+        print_error("At least one --prop is required")
+        raise typer.Exit(1)
+
+    ctx = get_context()
+    client = ctx.get_client()
+
+    try:
+        properties = _parse_properties(props)
+        client.alter_collection_field(
+            collection_name=collection,
+            field_name=field,
+            field_params=properties,
+        )
+        print_success(f"Updated field '{field}' in collection '{collection}'")
+    except ValueError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command("add-function")
+def add_function(
+    collection: str = typer.Argument(..., help="Collection name"),
+    func: str = typer.Argument(
+        ...,
+        help="Function definition as JSON",
+    ),
+) -> None:
+    """Add a function to a collection.
+
+    \b
+    The function definition should be a JSON object with the function configuration.
+
+    \b
+    Examples:
+      yami collection add-function my_col '{"name": "bm25", "type": "BM25", ...}'
+    """
+    ctx = get_context()
+    client = ctx.get_client()
+
+    try:
+        func_def = json.loads(func)
+        client.add_collection_function(collection_name=collection, function=func_def)
+        func_name = func_def.get("name", "unknown")
+        print_success(f"Added function '{func_name}' to collection '{collection}'")
+    except json.JSONDecodeError as e:
+        print_error(f"Invalid JSON: {e}")
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command("drop-function")
+def drop_function(
+    collection: str = typer.Argument(..., help="Collection name"),
+    func_name: str = typer.Argument(..., help="Function name"),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Skip confirmation prompt",
+    ),
+) -> None:
+    """Drop a function from a collection."""
+    if not force:
+        confirm = typer.confirm(
+            f"Are you sure you want to drop function '{func_name}' from '{collection}'?"
+        )
+        if not confirm:
+            raise typer.Abort()
+
+    ctx = get_context()
+    client = ctx.get_client()
+
+    try:
+        client.drop_collection_function(collection_name=collection, function_name=func_name)
+        print_success(f"Dropped function '{func_name}' from collection '{collection}'")
     except Exception as e:
         print_error(str(e))
         raise typer.Exit(1)

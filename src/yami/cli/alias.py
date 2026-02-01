@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 
 from yami.core.context import get_context
@@ -14,7 +12,7 @@ app = typer.Typer(no_args_is_help=True)
 
 @app.command("list")
 def list_aliases(
-    collection: Optional[str] = typer.Option(
+    collection: str | None = typer.Option(
         None,
         "--collection",
         "-c",

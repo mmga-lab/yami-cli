@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from typing import List, Optional
 
 import typer
 
@@ -13,7 +12,7 @@ from yami.output.formatter import format_output, print_error, print_info
 app = typer.Typer(no_args_is_help=True)
 
 
-def _get_vectors_from_sql(sql: str) -> List[List[float]]:
+def _get_vectors_from_sql(sql: str) -> list[list[float]]:
     """Execute SQL with DuckDB and return vectors."""
     try:
         import duckdb
@@ -37,13 +36,13 @@ def _get_vectors_from_sql(sql: str) -> List[List[float]]:
     return vectors
 
 
-def _get_random_vector(dim: int) -> List[float]:
+def _get_random_vector(dim: int) -> list[float]:
     """Generate a random vector for testing."""
     import random
     return [random.random() for _ in range(dim)]
 
 
-def _get_collection_vector_dim(client, collection_name: str, anns_field: Optional[str] = None) -> int:
+def _get_collection_vector_dim(client, collection_name: str, anns_field: str | None = None) -> int:
     """Get vector dimension from collection schema."""
     from pymilvus import DataType
 
@@ -69,13 +68,13 @@ def _get_collection_vector_dim(client, collection_name: str, anns_field: Optiona
 @app.command()
 def search(
     collection: str = typer.Argument(..., help="Collection name"),
-    vector: Optional[str] = typer.Option(
+    vector: str | None = typer.Option(
         None,
         "--vector",
         "-v",
         help="Vector as JSON array (e.g., '[0.1, 0.2, 0.3]')",
     ),
-    sql: Optional[str] = typer.Option(
+    sql: str | None = typer.Option(
         None,
         "--sql",
         help="Read vectors from Parquet via DuckDB SQL",
@@ -85,7 +84,7 @@ def search(
         "--random",
         help="Use random vector for testing",
     ),
-    dim: Optional[int] = typer.Option(
+    dim: int | None = typer.Option(
         None,
         "--dim",
         help="Vector dimension (for --random, auto-detected if not specified)",
@@ -96,39 +95,39 @@ def search(
         "-l",
         help="Maximum number of results to return",
     ),
-    filter_expr: Optional[str] = typer.Option(
+    filter_expr: str | None = typer.Option(
         None,
         "--filter",
         "-f",
         help="Filter expression (e.g., 'age > 20')",
     ),
-    output_fields: Optional[str] = typer.Option(
+    output_fields: str | None = typer.Option(
         None,
         "--output-fields",
         help="Comma-separated list of fields to return",
     ),
-    anns_field: Optional[str] = typer.Option(
+    anns_field: str | None = typer.Option(
         None,
         "--anns-field",
         help="Name of the vector field to search on",
     ),
-    metric_type: Optional[str] = typer.Option(
+    metric_type: str | None = typer.Option(
         None,
         "--metric",
         "-m",
         help="Metric type override: COSINE, L2, IP",
     ),
-    nprobe: Optional[int] = typer.Option(
+    nprobe: int | None = typer.Option(
         None,
         "--nprobe",
         help="Number of units to query (for IVF indexes)",
     ),
-    ef: Optional[int] = typer.Option(
+    ef: int | None = typer.Option(
         None,
         "--ef",
         help="Search ef parameter (for HNSW indexes)",
     ),
-    partition: Optional[str] = typer.Option(
+    partition: str | None = typer.Option(
         None,
         "--partition",
         "-p",
@@ -249,31 +248,31 @@ def search(
 @app.command("query")
 def query_cmd(
     collection: str = typer.Argument(..., help="Collection name"),
-    filter_expr: Optional[str] = typer.Option(
+    filter_expr: str | None = typer.Option(
         None,
         "--filter",
         "-f",
         help="Filter expression (e.g., 'age > 20')",
     ),
-    ids: Optional[str] = typer.Option(
+    ids: str | None = typer.Option(
         None,
         "--ids",
         "-i",
         help="Comma-separated list of IDs to query",
     ),
-    output_fields: Optional[str] = typer.Option(
+    output_fields: str | None = typer.Option(
         None,
         "--output-fields",
         "-o",
         help="Comma-separated list of fields to return",
     ),
-    limit: Optional[int] = typer.Option(
+    limit: int | None = typer.Option(
         None,
         "--limit",
         "-l",
         help="Maximum number of results (for filter query)",
     ),
-    partition: Optional[str] = typer.Option(
+    partition: str | None = typer.Option(
         None,
         "--partition",
         "-p",
@@ -334,13 +333,13 @@ def query_cmd(
 def get(
     collection: str = typer.Argument(..., help="Collection name"),
     ids: str = typer.Argument(..., help="Comma-separated list of IDs"),
-    output_fields: Optional[str] = typer.Option(
+    output_fields: str | None = typer.Option(
         None,
         "--output-fields",
         "-o",
         help="Comma-separated list of fields to return",
     ),
-    partition: Optional[str] = typer.Option(
+    partition: str | None = typer.Option(
         None,
         "--partition",
         "-p",
@@ -411,13 +410,13 @@ def _load_hybrid_requests_from_sql(sql: str) -> list[dict]:
 @app.command("hybrid-search")
 def hybrid_search(
     collection: str = typer.Argument(..., help="Collection name"),
-    req: List[str] = typer.Option(
+    req: list[str] = typer.Option(
         [],
         "--req",
         "-r",
         help="Search request as JSON: {\"field\": \"vec\", \"vector\": [...], \"limit\": 10}",
     ),
-    sql: Optional[str] = typer.Option(
+    sql: str | None = typer.Option(
         None,
         "--sql",
         "-s",
@@ -429,7 +428,7 @@ def hybrid_search(
         "-l",
         help="Final limit after ranking",
     ),
-    output_fields: Optional[str] = typer.Option(
+    output_fields: str | None = typer.Option(
         None,
         "--output-fields",
         "-o",
@@ -445,13 +444,13 @@ def hybrid_search(
         "--rrf-k",
         help="RRF parameter k (only for rrf ranker)",
     ),
-    weights: Optional[str] = typer.Option(
+    weights: str | None = typer.Option(
         None,
         "--weights",
         "-w",
         help="Comma-separated weights for weighted ranker (e.g., '0.7,0.3')",
     ),
-    partition: Optional[str] = typer.Option(
+    partition: str | None = typer.Option(
         None,
         "--partition",
         "-p",
@@ -595,6 +594,173 @@ def hybrid_search(
             format_output(flat_results, ctx.output, title="Hybrid Search Results")
         else:
             format_output([], ctx.output, title="Hybrid Search Results")
+
+    except json.JSONDecodeError as e:
+        print_error(f"Invalid JSON: {e}")
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command("search-iterator")
+def search_iterator(
+    collection: str = typer.Argument(..., help="Collection name"),
+    vector: str | None = typer.Option(
+        None,
+        "--vector",
+        "-v",
+        help="Vector as JSON array (e.g., '[0.1, 0.2, 0.3]')",
+    ),
+    sql: str | None = typer.Option(
+        None,
+        "--sql",
+        help="Read vector from Parquet via DuckDB SQL",
+    ),
+    random: bool = typer.Option(
+        False,
+        "--random",
+        help="Use random vector for testing",
+    ),
+    dim: int | None = typer.Option(
+        None,
+        "--dim",
+        help="Vector dimension (for --random)",
+    ),
+    batch_size: int = typer.Option(
+        100,
+        "--batch-size",
+        "-b",
+        help="Number of results per batch",
+    ),
+    limit: int = typer.Option(
+        1000,
+        "--limit",
+        "-l",
+        help="Maximum total number of results",
+    ),
+    filter_expr: str | None = typer.Option(
+        None,
+        "--filter",
+        "-f",
+        help="Filter expression",
+    ),
+    output_fields: str | None = typer.Option(
+        None,
+        "--output-fields",
+        help="Comma-separated list of fields to return",
+    ),
+    anns_field: str | None = typer.Option(
+        None,
+        "--anns-field",
+        help="Name of the vector field to search on",
+    ),
+    metric_type: str | None = typer.Option(
+        None,
+        "--metric",
+        "-m",
+        help="Metric type: COSINE, L2, IP",
+    ),
+    partition: str | None = typer.Option(
+        None,
+        "--partition",
+        "-p",
+        help="Partition names (comma-separated)",
+    ),
+) -> None:
+    """Search using iterator for large result sets.
+
+    \b
+    Unlike regular search, the iterator allows fetching results in batches,
+    which is useful when you need more results than the typical limit allows.
+
+    \b
+    Examples:
+      yami query search-iterator my_col --random --limit 5000
+      yami query search-iterator my_col -v '[0.1, ...]' --batch-size 500 --limit 10000
+    """
+    ctx = get_context()
+    client = ctx.get_client()
+
+    try:
+        query_vector = None
+
+        # Determine vector source
+        sources = sum([
+            vector is not None,
+            sql is not None,
+            random,
+        ])
+
+        if sources == 0:
+            print_error("Must specify one of: --vector, --sql, or --random")
+            raise typer.Exit(1)
+        if sources > 1:
+            print_error("Only one vector source allowed")
+            raise typer.Exit(1)
+
+        if vector:
+            query_vector = json.loads(vector)
+            print_info(f"Using vector with {len(query_vector)} dimensions")
+        elif sql:
+            vectors = _get_vectors_from_sql(sql)
+            if not vectors:
+                print_error("SQL query returned no vectors")
+                raise typer.Exit(1)
+            query_vector = vectors[0]
+            print_info(f"Using first vector from SQL query ({len(query_vector)} dimensions)")
+        elif random:
+            vec_dim = dim or _get_collection_vector_dim(client, collection, anns_field)
+            query_vector = _get_random_vector(vec_dim)
+            print_info(f"Using random vector with {vec_dim} dimensions")
+
+        # Parse output fields
+        fields = None
+        if output_fields:
+            fields = [f.strip() for f in output_fields.split(",")]
+
+        # Parse partitions
+        partitions = None
+        if partition:
+            partitions = [p.strip() for p in partition.split(",")]
+
+        # Build search params
+        search_params = {}
+        if metric_type:
+            search_params["metric_type"] = metric_type
+
+        # Create iterator
+        iterator = client.search_iterator(
+            collection_name=collection,
+            data=[query_vector],
+            batch_size=batch_size,
+            limit=limit,
+            filter=filter_expr or "",
+            output_fields=fields or ["*"],
+            search_params=search_params if search_params else None,
+            anns_field=anns_field,
+            partition_names=partitions,
+        )
+
+        # Collect all results
+        all_results = []
+        batch_count = 0
+        try:
+            while True:
+                batch = iterator.next()
+                if not batch:
+                    break
+                batch_count += 1
+                for hit in batch:
+                    item = {"id": hit.get("id"), "distance": hit.get("distance")}
+                    entity = hit.get("entity", {})
+                    item.update(entity)
+                    all_results.append(item)
+        finally:
+            iterator.close()
+
+        print_info(f"Retrieved {len(all_results)} results in {batch_count} batch(es)")
+        format_output(all_results, ctx.output, title="Search Iterator Results")
 
     except json.JSONDecodeError as e:
         print_error(f"Invalid JSON: {e}")

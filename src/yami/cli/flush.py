@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 from rich.console import Console
 
@@ -51,3 +49,21 @@ def flush_all() -> None:
         raise typer.Exit(1)
 
 
+@app.command()
+def state() -> None:
+    """Get the state of flush all operation.
+
+    Returns whether the flush all operation has completed.
+    """
+    ctx = get_context()
+    client = ctx.get_client()
+
+    try:
+        is_flushed = client.get_flush_all_state()
+        if is_flushed:
+            print_success("Flush all completed")
+        else:
+            format_output({"flushed": False}, ctx.output, title="Flush State")
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)

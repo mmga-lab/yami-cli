@@ -2,12 +2,27 @@
 
 from __future__ import annotations
 
-from typing import Optional
+import json
+from typing import Annotated
 
 import typer
 
 from yami.core.context import get_context
 from yami.output.formatter import format_output, print_error, print_success
+
+
+def _parse_properties(props: list[str]) -> dict:
+    """Parse property list in key=value format to dict."""
+    result = {}
+    for prop in props:
+        if "=" not in prop:
+            raise ValueError(f"Invalid property format: '{prop}'. Expected 'key=value'")
+        key, value = prop.split("=", 1)
+        try:
+            result[key] = json.loads(value)
+        except json.JSONDecodeError:
+            result[key] = value
+    return result
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -15,7 +30,7 @@ app = typer.Typer(no_args_is_help=True)
 @app.command("list")
 def list_indexes(
     collection: str = typer.Argument(..., help="Collection name"),
-    field: Optional[str] = typer.Option(
+    field: str | None = typer.Option(
         None,
         "--field",
         "-f",
@@ -67,23 +82,23 @@ def create(
         "-m",
         help="Metric type: COSINE, L2, IP",
     ),
-    index_name: Optional[str] = typer.Option(
+    index_name: str | None = typer.Option(
         None,
         "--name",
         "-n",
         help="Index name (auto-generated if not specified)",
     ),
-    nlist: Optional[int] = typer.Option(
+    nlist: int | None = typer.Option(
         None,
         "--nlist",
         help="Number of cluster units (for IVF indexes)",
     ),
-    m: Optional[int] = typer.Option(
+    m: int | None = typer.Option(
         None,
         "--m",
         help="Maximum degree of the node (for HNSW)",
     ),
-    ef_construction: Optional[int] = typer.Option(
+    ef_construction: int | None = typer.Option(
         None,
         "--ef-construction",
         help="ef parameter at construction time (for HNSW)",
@@ -142,6 +157,86 @@ def drop(
     try:
         client.drop_index(collection, index_name)
         print_success(f"Index '{index_name}' dropped from collection '{collection}'")
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command("alter-properties")
+def alter_properties(
+    collection: str = typer.Argument(..., help="Collection name"),
+    index_name: str = typer.Argument(..., help="Index name"),
+    props: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--prop",
+            "-p",
+            help="Property in key=value format (can be repeated)",
+        ),
+    ] = None,
+) -> None:
+    """Alter index properties.
+
+    \b
+    Examples:
+      yami index alter-properties my_col my_index -p mmap.enabled=true
+    """
+    if not props:
+        print_error("At least one --prop is required")
+        raise typer.Exit(1)
+
+    ctx = get_context()
+    client = ctx.get_client()
+
+    try:
+        properties = _parse_properties(props)
+        client.alter_index_properties(
+            collection_name=collection,
+            index_name=index_name,
+            properties=properties,
+        )
+        print_success(f"Updated index '{index_name}' properties in collection '{collection}'")
+    except ValueError as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command("drop-properties")
+def drop_properties(
+    collection: str = typer.Argument(..., help="Collection name"),
+    index_name: str = typer.Argument(..., help="Index name"),
+    keys: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--key",
+            "-k",
+            help="Property key to drop (can be repeated)",
+        ),
+    ] = None,
+) -> None:
+    """Drop index properties.
+
+    \b
+    Examples:
+      yami index drop-properties my_col my_index -k mmap.enabled
+    """
+    if not keys:
+        print_error("At least one --key is required")
+        raise typer.Exit(1)
+
+    ctx = get_context()
+    client = ctx.get_client()
+
+    try:
+        client.drop_index_properties(
+            collection_name=collection,
+            index_name=index_name,
+            property_keys=keys,
+        )
+        print_success(f"Dropped {len(keys)} property(ies) from index '{index_name}'")
     except Exception as e:
         print_error(str(e))
         raise typer.Exit(1)

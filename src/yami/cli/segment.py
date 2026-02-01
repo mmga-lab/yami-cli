@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.table import Table
 
 from yami.core.context import get_context
-from yami.output.formatter import format_output, print_error, print_info
+from yami.output.formatter import format_output, print_error, print_info, print_success
 
 app = typer.Typer(no_args_is_help=True)
 console = Console()
@@ -259,6 +259,38 @@ def segment_stats(
                     )
             console.print(level_table)
 
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)
+
+
+@app.command()
+def optimize(
+    collection: str = typer.Argument(..., help="Collection name"),
+    target_size: int = typer.Option(
+        512 * 1024 * 1024,
+        "--target-size",
+        "-s",
+        help="Target segment size in bytes (default: 512MB)",
+    ),
+) -> None:
+    """Optimize segments for a collection.
+
+    \b
+    Merges small segments into larger ones to improve query performance.
+    The target size determines the desired segment size after optimization.
+
+    \b
+    Examples:
+      yami segment optimize my_col
+      yami segment optimize my_col --target-size 1073741824  # 1GB
+    """
+    ctx = get_context()
+    client = ctx.get_client()
+
+    try:
+        client.optimize(collection_name=collection, target_segment_size=target_size)
+        print_success(f"Optimization started for collection '{collection}'")
     except Exception as e:
         print_error(str(e))
         raise typer.Exit(1)

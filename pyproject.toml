@@ -29,7 +29,7 @@ keywords = ["milvus", "cli", "vector-database", "command-line"]
 
 dependencies = [
     "typer[all]>=0.12.0",
-    "pymilvus>=2.5.0",
+    "pymilvus>=2.6.0",
     "rich>=13.0.0",
     "pyyaml>=6.0",
     "tomli>=2.0.0;python_version<'3.11'",

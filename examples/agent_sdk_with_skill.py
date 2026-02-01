@@ -14,9 +14,10 @@ Usage:
     python examples/agent_sdk_with_skill.py
 """
 
-import anyio
 from pathlib import Path
-from claude_agent_sdk import query, ClaudeAgentOptions
+
+import anyio
+from claude_agent_sdk import ClaudeAgentOptions, query
 
 
 async def main():

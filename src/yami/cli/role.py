@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 
 from yami.core.context import get_context
@@ -95,7 +93,7 @@ def grant(
         "-c",
         help="Collection name (default: all collections)",
     ),
-    db: Optional[str] = typer.Option(
+    db: str | None = typer.Option(
         None,
         "--db",
         "-d",
@@ -129,7 +127,7 @@ def revoke(
         "-c",
         help="Collection name (default: all collections)",
     ),
-    db: Optional[str] = typer.Option(
+    db: str | None = typer.Option(
         None,
         "--db",
         "-d",

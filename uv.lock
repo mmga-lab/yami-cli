@@ -1137,7 +1137,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.4.3" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "pyarrow", specifier = ">=22.0.0" },
-    { name = "pymilvus", specifier = ">=2.5.0" },
+    { name = "pymilvus", specifier = ">=2.6.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
     { name = "pyyaml", specifier = ">=6.0" },

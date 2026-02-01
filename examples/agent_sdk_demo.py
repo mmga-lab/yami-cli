@@ -16,7 +16,7 @@ Usage:
 """
 
 import anyio
-from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, TextBlock
+from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
 
 # Import yami's skill prompt
 from yami import get_skill_prompt

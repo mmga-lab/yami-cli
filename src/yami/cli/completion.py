@@ -147,7 +147,7 @@ def install(
 
     if not script:
         # Final fallback: instruct user to use typer's built-in
-        print_info(f"Run this command to install completion:")
+        print_info("Run this command to install completion:")
         print_info(f"  yami --install-completion {shell}")
         return
 
@@ -163,13 +163,13 @@ def install(
         if zshrc.exists():
             content = zshrc.read_text()
             if str(comp_dir) not in content:
-                print_info(f"Add this line to your ~/.zshrc:")
+                print_info("Add this line to your ~/.zshrc:")
                 console.print(f"  [cyan]{add_line}[/cyan]")
                 print_info("Then run: autoload -Uz compinit && compinit")
             else:
                 print_info("Run: autoload -Uz compinit && compinit")
         else:
-            print_info(f"Add this line to your ~/.zshrc:")
+            print_info("Add this line to your ~/.zshrc:")
             console.print(f"  [cyan]{add_line}[/cyan]")
 
     elif shell == "bash":

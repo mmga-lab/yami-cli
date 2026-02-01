@@ -41,7 +41,6 @@ from typing import Any
 
 from pymilvus import DataType
 
-
 # Type name to DataType mapping
 TYPE_MAP = {
     "bool": DataType.BOOL,
@@ -92,7 +91,7 @@ class FieldSpec:
     metric_type: str | None = None  # for vectors
     element_type: DataType | None = None  # for array
     max_capacity: int | None = None  # for array and struct
-    struct_fields: list["FieldSpec"] | None = None  # for struct
+    struct_fields: list[FieldSpec] | None = None  # for struct
     extra_params: dict = field(default_factory=dict)
 
 
