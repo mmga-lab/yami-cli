@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING, Any
 from pymilvus import MilvusClient
 
 from yami.config.loader import get_token_from_env, get_uri_from_env, load_config
-from yami.config.profiles import get_profile, load_profiles
+from yami.config.profiles import get_profile
 from yami.exceptions import ConnectionError
+from yami.output.formatter import print_debug
 
 if TYPE_CHECKING:
     from yami.core.context import CLIContext
@@ -23,6 +24,7 @@ class YamiClient:
         token: str = "",
         db_name: str = "",
         timeout: float | None = None,
+        debug: bool = False,
     ):
         """Initialize the client.
 
@@ -31,11 +33,19 @@ class YamiClient:
             token: Authentication token.
             db_name: Database name.
             timeout: Connection timeout in seconds.
+            debug: Enable debug output.
         """
         self._uri = uri
         self._token = token
         self._db_name = db_name
         self._timeout = timeout
+        self._debug = debug
+
+        print_debug(f"Connecting to {uri}")
+        if db_name:
+            print_debug(f"Database: {db_name}")
+        if token:
+            print_debug("Token: ****")
 
         try:
             self._client = MilvusClient(
@@ -44,8 +54,10 @@ class YamiClient:
                 db_name=db_name if db_name else None,
                 timeout=timeout,
             )
+            print_debug("Connection established")
         except Exception as e:
-            raise ConnectionError(f"Failed to connect to Milvus at {uri}: {e}") from e
+            print_debug(f"Connection failed: {e}")
+            raise ConnectionError(f"Failed to connect to Milvus at {uri}: {e}", uri=uri) from e
 
     @property
     def uri(self) -> str:
@@ -53,15 +65,37 @@ class YamiClient:
         return self._uri
 
     def __getattr__(self, name: str) -> Any:
-        """Proxy all methods to underlying MilvusClient."""
-        return getattr(self._client, name)
+        """Proxy all methods to underlying MilvusClient with debug logging."""
+        attr = getattr(self._client, name)
+        if callable(attr):
+            return self._wrap_method(name, attr)
+        return attr
+
+    def _wrap_method(self, name: str, method: Any) -> Any:
+        """Wrap a method with debug logging."""
+
+        def wrapper(*args, **kwargs):
+            print_debug(f"pymilvus.{name}() called")
+            if args:
+                print_debug(f"  args: {args}")
+            if kwargs:
+                print_debug(f"  kwargs: {kwargs}")
+            try:
+                result = method(*args, **kwargs)
+                print_debug(f"pymilvus.{name}() returned")
+                return result
+            except Exception as e:
+                print_debug(f"pymilvus.{name}() raised: {e}")
+                raise
+
+        return wrapper
 
     def close(self) -> None:
         """Close the connection."""
         self._client.close()
 
 
-def create_client(ctx: "CLIContext") -> YamiClient:
+def create_client(ctx: CLIContext) -> YamiClient:
     """Create a Milvus client from CLI context.
 
     Priority order:
@@ -111,4 +145,5 @@ def create_client(ctx: "CLIContext") -> YamiClient:
         token=token or "",
         db_name=db or "",
         timeout=ctx.timeout,
+        debug=ctx.debug,
     )

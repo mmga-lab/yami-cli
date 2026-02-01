@@ -293,9 +293,28 @@ run_test "config init" "yami config init"
 run_test "config list" "yami config list"
 run_test "config set" "yami config set output json"
 run_test "config get" "yami config get output"
-run_test "config profile add" "yami config profile add test_profile --uri http://localhost:19530"
+run_test "config profile add (no-test)" "yami config profile add test_profile --uri http://localhost:19530 --no-test"
 run_test "config profile list" "yami config profile list"
+run_test "config profile test" "yami config profile test test_profile"
 run_test "config profile remove" "yami config profile remove test_profile -f"
+# Test profile add with connection test (default behavior)
+run_test "config profile add (with test)" "yami config profile add test_profile2 --uri $MILVUS_URI"
+run_test "config profile remove (2)" "yami config profile remove test_profile2 -f"
+echo ""
+
+# ==========================================
+# Doctor Tests
+# ==========================================
+echo "--- Doctor Tests ---"
+run_test "doctor" "yami --uri $MILVUS_URI doctor"
+run_test "doctor profiles" "yami --uri $MILVUS_URI doctor profiles"
+echo ""
+
+# ==========================================
+# Debug Mode Tests
+# ==========================================
+echo "--- Debug Mode Tests ---"
+run_test "debug mode" "yami --debug --uri $MILVUS_URI server version 2>&1 | grep -q DEBUG"
 echo ""
 
 # ==========================================

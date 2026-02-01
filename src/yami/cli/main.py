@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -16,6 +15,7 @@ from yami.cli import (
     config,
     data,
     database,
+    doctor,
     flush,
     index,
     io,
@@ -29,7 +29,8 @@ from yami.cli import (
     user,
 )
 from yami.core.context import CLIContext, reset_context, set_context
-from yami.output.formatter import print_error, print_success
+from yami.exceptions import YamiError
+from yami.output.formatter import print_error, print_rich_error, print_success
 from yami.version import __version__
 
 console = Console()
@@ -60,6 +61,7 @@ app.add_typer(compact.app, name="compact", help="Compaction operations")
 app.add_typer(segment.app, name="segment", help="Segment information")
 app.add_typer(io.app, name="io", help="Import/Export data")
 app.add_typer(skill.app, name="skill", help="Claude Code skill management")
+app.add_typer(doctor.app, name="doctor", help="Diagnostics and troubleshooting")
 
 
 def version_callback(value: bool) -> None:
@@ -72,6 +74,7 @@ def version_callback(value: bool) -> None:
 def _get_default_mode() -> str:
     """Get default mode from env or config."""
     import os
+
     from yami.config.loader import load_config
 
     # Environment variable has priority
@@ -90,51 +93,56 @@ def _get_default_mode() -> str:
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,
-    uri: Optional[str] = typer.Option(
+    uri: str | None = typer.Option(
         None,
         "--uri",
         "-u",
         help="Milvus server URI (e.g., http://localhost:19530)",
         envvar="MILVUS_URI",
     ),
-    token: Optional[str] = typer.Option(
+    token: str | None = typer.Option(
         None,
         "--token",
         "-t",
         help="Authentication token",
         envvar="MILVUS_TOKEN",
     ),
-    db: Optional[str] = typer.Option(
+    db: str | None = typer.Option(
         None,
         "--db",
         "-d",
         help="Database name",
     ),
-    profile: Optional[str] = typer.Option(
+    profile: str | None = typer.Option(
         None,
         "--profile",
         "-p",
         help="Connection profile name",
     ),
-    mode: Optional[str] = typer.Option(
+    mode: str | None = typer.Option(
         None,
         "--mode",
         "-m",
         help="Output mode: human (default) or agent",
     ),
-    output: Optional[str] = typer.Option(
+    output: str | None = typer.Option(
         None,
         "--output",
         "-o",
         help="Output format: table, json, yaml (overrides mode default)",
     ),
-    quiet: Optional[bool] = typer.Option(
+    quiet: bool | None = typer.Option(
         None,
         "--quiet",
         "-q",
         help="Suppress non-data output (overrides mode default)",
     ),
-    version: Optional[bool] = typer.Option(
+    debug: bool = typer.Option(
+        False,
+        "--debug",
+        help="Enable debug mode with verbose output",
+    ),
+    version: bool | None = typer.Option(
         None,
         "--version",
         "-V",
@@ -166,6 +174,7 @@ def main_callback(
         db=db,
         profile=profile,
         mode=effective_mode,
+        debug=debug,
     )
 
     # Apply explicit overrides if provided
@@ -176,8 +185,11 @@ def main_callback(
 
     set_context(cli_ctx)
 
-    # Suppress pymilvus logs in agent mode
-    if cli_ctx.is_agent_mode:
+    # Configure logging based on mode
+    if cli_ctx.debug:
+        logging.basicConfig(level=logging.DEBUG, format="[DEBUG] %(name)s: %(message)s")
+        logging.getLogger("pymilvus").setLevel(logging.DEBUG)
+    elif cli_ctx.is_agent_mode:
         logging.getLogger("pymilvus").setLevel(logging.CRITICAL)
 
     # Store in typer context for subcommands
@@ -222,6 +234,12 @@ def main() -> None:
     """Main entry point."""
     try:
         app()
+    except YamiError as e:
+        print_rich_error(e)
+        raise typer.Exit(1)
+    except Exception as e:
+        print_error(str(e))
+        raise typer.Exit(1)
     finally:
         reset_context()
 

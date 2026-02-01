@@ -3,7 +3,7 @@
 import pytest
 from pymilvus import DataType
 
-from yami.core.schema import parse_field, parse_fields, SchemaParseError, build_schema, TYPE_MAP
+from yami.core.schema import TYPE_MAP, SchemaParseError, build_schema, parse_field, parse_fields
 
 
 class TestAllDataTypes:
@@ -105,10 +105,15 @@ class TestAllDataTypes:
         for type_name, expected_type in TYPE_MAP.items():
             if type_name == "array":
                 # array needs element type
-                spec = parse_field(f"field:array:int64")
+                spec = parse_field("field:array:int64")
             elif type_name in ("varchar", "string"):
                 spec = parse_field(f"field:{type_name}:256")
-            elif type_name in ("float_vector", "binary_vector", "float16_vector", "bfloat16_vector"):
+            elif type_name in (
+                "float_vector",
+                "binary_vector",
+                "float16_vector",
+                "bfloat16_vector",
+            ):
                 spec = parse_field(f"field:{type_name}:128")
             elif type_name in ("sparse_vector", "sparse_float_vector"):
                 spec = parse_field(f"field:{type_name}")
@@ -163,15 +168,18 @@ class TestParseField:
 
     # ========== Array field tests ==========
 
-    @pytest.mark.parametrize("elem_type,expected", [
-        ("bool", DataType.BOOL),
-        ("int8", DataType.INT8),
-        ("int16", DataType.INT16),
-        ("int32", DataType.INT32),
-        ("int64", DataType.INT64),
-        ("float", DataType.FLOAT),
-        ("double", DataType.DOUBLE),
-    ])
+    @pytest.mark.parametrize(
+        "elem_type,expected",
+        [
+            ("bool", DataType.BOOL),
+            ("int8", DataType.INT8),
+            ("int16", DataType.INT16),
+            ("int32", DataType.INT32),
+            ("int64", DataType.INT64),
+            ("float", DataType.FLOAT),
+            ("double", DataType.DOUBLE),
+        ],
+    )
     def test_array_scalar_types(self, elem_type, expected):
         """Test array with all scalar element types."""
         spec = parse_field(f"arr:array:{elem_type}:100")
@@ -271,11 +279,17 @@ class TestParseField:
 
     def test_struct_with_all_scalar_types(self):
         """Test struct containing various scalar types."""
-        spec = parse_field("record:struct(a:bool,b:int8,c:int16,d:int32,e:int64,f:float,g:double):10")
+        field_def = "record:struct(a:bool,b:int8,c:int16,d:int32,e:int64,f:float,g:double):10"
+        spec = parse_field(field_def)
         assert len(spec.struct_fields) == 7
         expected_types = [
-            DataType.BOOL, DataType.INT8, DataType.INT16, DataType.INT32,
-            DataType.INT64, DataType.FLOAT, DataType.DOUBLE
+            DataType.BOOL,
+            DataType.INT8,
+            DataType.INT16,
+            DataType.INT32,
+            DataType.INT64,
+            DataType.FLOAT,
+            DataType.DOUBLE,
         ]
         for i, expected in enumerate(expected_types):
             assert spec.struct_fields[i].data_type == expected
@@ -345,10 +359,12 @@ class TestParseFields:
     """Test parse_fields function."""
 
     def test_simple_schema(self):
-        specs = parse_fields([
-            "id:int64:pk",
-            "vec:float_vector:128",
-        ])
+        specs = parse_fields(
+            [
+                "id:int64:pk",
+                "vec:float_vector:128",
+            ]
+        )
         assert len(specs) == 2
         assert specs[0].is_primary
 
@@ -365,20 +381,24 @@ class TestBuildSchema:
     """Test build_schema function."""
 
     def test_build_simple_schema(self):
-        specs = parse_fields([
-            "id:int64:pk",
-            "vec:float_vector:128",
-        ])
+        specs = parse_fields(
+            [
+                "id:int64:pk",
+                "vec:float_vector:128",
+            ]
+        )
         schema = build_schema(specs)
         assert len(schema.fields) == 2
 
     def test_build_schema_with_array_varchar(self):
         """Test building schema with array<varchar> field."""
-        specs = parse_fields([
-            "id:int64:pk",
-            "vec:float_vector:128",
-            "tags:array:varchar:64:100",
-        ])
+        specs = parse_fields(
+            [
+                "id:int64:pk",
+                "vec:float_vector:128",
+                "tags:array:varchar:64:100",
+            ]
+        )
         schema = build_schema(specs)
         assert len(schema.fields) == 3
 
@@ -392,11 +412,13 @@ class TestBuildSchema:
 
     def test_build_schema_with_array_int64(self):
         """Test building schema with array<int64> field."""
-        specs = parse_fields([
-            "id:int64:pk",
-            "vec:float_vector:128",
-            "scores:array:int64:50",
-        ])
+        specs = parse_fields(
+            [
+                "id:int64:pk",
+                "vec:float_vector:128",
+                "scores:array:int64:50",
+            ]
+        )
         schema = build_schema(specs)
 
         scores_field = next(f for f in schema.fields if f.name == "scores")
@@ -408,11 +430,13 @@ class TestBuildSchema:
 
     def test_build_schema_with_struct(self):
         """Test building schema with struct field."""
-        specs = parse_fields([
-            "id:int64:pk",
-            "vec:float_vector:128",
-            "info:struct(name:varchar:64,age:int32):100",
-        ])
+        specs = parse_fields(
+            [
+                "id:int64:pk",
+                "vec:float_vector:128",
+                "info:struct(name:varchar:64,age:int32):100",
+            ]
+        )
         schema = build_schema(specs)
 
         # Regular fields should be 2 (id and vec)

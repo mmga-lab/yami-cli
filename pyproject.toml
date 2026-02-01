@@ -74,4 +74,5 @@ warn_unused_ignores = true
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.14.11",
 ]

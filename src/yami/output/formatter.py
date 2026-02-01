@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from rich.console import Console
+
+if TYPE_CHECKING:
+    from yami.core.error_catalog import ErrorInfo
+    from yami.exceptions import YamiError
 
 # Default consoles (for human mode)
 _console: Console | None = None
@@ -18,6 +22,7 @@ def _is_agent_mode() -> bool:
     """Check if running in agent mode."""
     try:
         from yami.core.context import get_context
+
         return get_context().is_agent_mode
     except Exception:
         return False
@@ -48,6 +53,7 @@ def _get_output_format() -> str:
     """Get current output format from context."""
     try:
         from yami.core.context import get_context
+
         return get_context().output
     except Exception:
         return "table"
@@ -57,6 +63,7 @@ def _is_quiet() -> bool:
     """Check if quiet mode is enabled."""
     try:
         from yami.core.context import get_context
+
         return get_context().quiet
     except Exception:
         return False
@@ -95,7 +102,6 @@ def print_yaml(data: Any) -> None:
 
 def print_table(data: dict | list, title: str = "") -> None:
     """Print data as Rich table."""
-    from rich.table import Table
 
     if data is None:
         _get_console().print("[yellow]No data[/yellow]")
@@ -187,19 +193,83 @@ def print_success(message: str, data: dict | None = None) -> None:
         _get_console().print(f"[green]{message}[/green]")
 
 
-def print_error(message: str, code: str = "ERROR") -> None:
-    """Print an error message.
+def print_error(
+    message: str,
+    code: str = "ERROR",
+    error: YamiError | None = None,
+) -> None:
+    """Print an error message with optional rich context.
 
     In JSON mode, outputs structured error to stdout.
-    Otherwise outputs to stderr for clean stdout.
+    Otherwise outputs formatted error to stderr.
     """
     output_format = _get_output_format()
 
     if output_format == "json":
-        error_data = {"error": {"code": code, "message": message}}
+        error_data: dict[str, Any] = {"error": {"code": code, "message": message}}
+        if error and hasattr(error, "context") and error.context:
+            error_data["error"]["context"] = error.context
         _get_console().print_json(json.dumps(error_data, indent=2, ensure_ascii=False))
     else:
         _get_stderr_console().print(f"[red]Error:[/red] {message}")
+
+
+def print_rich_error(error: YamiError) -> None:
+    """Print a rich error message with causes and suggestions.
+
+    This provides the enhanced error output with error codes and fix suggestions.
+    """
+    from yami.core.error_catalog import get_error_info
+
+    output_format = _get_output_format()
+    error_info = get_error_info(error.code)
+
+    if output_format == "json":
+        error_data = {
+            "error": {
+                "code": error.code.value,
+                "title": error_info.title,
+                "message": error.message,
+                "causes": error_info.causes,
+                "suggestions": error_info.suggestions,
+            }
+        }
+        if error.context:
+            error_data["error"]["context"] = error.context
+        _get_console().print_json(json.dumps(error_data, indent=2, ensure_ascii=False))
+    else:
+        _print_rich_error_human(error, error_info)
+
+
+def _print_rich_error_human(error: YamiError, error_info: ErrorInfo) -> None:
+    """Print rich error for human mode."""
+    console = _get_stderr_console()
+
+    # Header with error code and title
+    console.print(f"\n[bold red][{error_info.code.value}] {error_info.title}[/bold red]")
+
+    # Error message
+    console.print(f"{error.message}")
+
+    # Context if available
+    if error.context:
+        console.print()
+        for key, value in error.context.items():
+            console.print(f"  [dim]{key}:[/dim] {value}")
+
+    # Possible causes
+    if error_info.causes:
+        console.print("\n[yellow]Possible causes:[/yellow]")
+        for cause in error_info.causes:
+            console.print(f"  • {cause}")
+
+    # Suggestions
+    if error_info.suggestions:
+        console.print("\n[green]Try:[/green]")
+        for suggestion in error_info.suggestions:
+            console.print(f"  {suggestion}")
+
+    console.print()
 
 
 def print_warning(message: str) -> None:
@@ -216,3 +286,17 @@ def print_info(message: str) -> None:
     """
     if not _is_quiet():
         _get_stderr_console().print(f"[blue]{message}[/blue]")
+
+
+def print_debug(message: str) -> None:
+    """Print a debug message to stderr.
+
+    Only prints if debug mode is enabled.
+    """
+    try:
+        from yami.core.context import get_context
+
+        if get_context().debug:
+            _get_stderr_console().print(f"[dim][DEBUG][/dim] {message}")
+    except Exception:
+        pass

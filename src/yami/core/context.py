@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from yami.core.client import YamiClient
@@ -18,12 +18,13 @@ class CLIContext:
     db: str | None = None
     profile: str | None = None
     mode: str = "agent"  # "agent" (default) or "human"
+    debug: bool = False  # Debug mode for verbose output
     # These can be overridden, but default based on mode
     _output: str | None = None
     _quiet: bool | None = None
     timeout: float = 30.0
 
-    _client: "YamiClient | None" = field(default=None, repr=False)
+    _client: YamiClient | None = field(default=None, repr=False)
 
     @property
     def is_agent_mode(self) -> bool:
@@ -68,7 +69,7 @@ class CLIContext:
                 return profile_data["uri"]
         return "http://localhost:19530"
 
-    def get_client(self) -> "YamiClient":
+    def get_client(self) -> YamiClient:
         """Get or create a Milvus client."""
         if self._client is None:
             from yami.core.client import create_client

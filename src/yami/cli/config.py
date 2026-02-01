@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 from rich.console import Console
 
@@ -16,7 +14,7 @@ from yami.config.profiles import (
     remove_profile,
 )
 from yami.config.settings import get_config_dir
-from yami.output.formatter import format_output, print_error, print_success
+from yami.output.formatter import format_output, print_error, print_success, print_warning
 
 app = typer.Typer(no_args_is_help=True)
 profile_app = typer.Typer(no_args_is_help=True, help="Manage connection profiles")
@@ -109,17 +107,21 @@ def profile_list() -> None:
     default_profile = config.default_profile
 
     if not profiles:
-        console.print("[yellow]No profiles configured. Use 'yami config profile add' to create one.[/yellow]")
+        console.print(
+            "[yellow]No profiles configured. Use 'yami config profile add' to create one.[/yellow]"
+        )
         return
 
     profile_list = []
     for name, profile in profiles.items():
-        profile_list.append({
-            "name": name,
-            "uri": profile.uri,
-            "db": profile.db or "(default)",
-            "default": "*" if name == default_profile else "",
-        })
+        profile_list.append(
+            {
+                "name": name,
+                "uri": profile.uri,
+                "db": profile.db or "(default)",
+                "default": "*" if name == default_profile else "",
+            }
+        )
 
     format_output(profile_list, "table", title="Connection Profiles")
 
@@ -133,19 +135,19 @@ def profile_add(
         "-u",
         help="Milvus server URI",
     ),
-    token: Optional[str] = typer.Option(
+    token: str | None = typer.Option(
         None,
         "--token",
         "-t",
         help="Authentication token",
     ),
-    db: Optional[str] = typer.Option(
+    db: str | None = typer.Option(
         None,
         "--db",
         "-d",
         help="Database name",
     ),
-    description: Optional[str] = typer.Option(
+    description: str | None = typer.Option(
         None,
         "--description",
         help="Profile description",
@@ -155,8 +157,36 @@ def profile_add(
         "--default",
         help="Set as default profile",
     ),
+    no_test: bool = typer.Option(
+        False,
+        "--no-test",
+        help="Skip connection test",
+    ),
 ) -> None:
-    """Add a new connection profile."""
+    """Add a new connection profile.
+
+    By default, tests the connection before saving. Use --no-test to skip.
+    """
+    # Warn about plaintext token
+    if token:
+        print_warning("Token will be stored in plaintext in the config file.")
+
+    # Test connection unless skipped
+    if not no_test:
+        console.print("Testing connection... ", end="")
+        try:
+            from yami.core.client import YamiClient
+
+            client = YamiClient(uri=uri, token=token or "", db_name=db or "", timeout=10.0)
+            version = client.get_server_version()
+            client.close()
+            console.print(f"[green]✓[/green] Connected (Milvus {version})")
+        except Exception as e:
+            console.print("[red]✗[/red] Failed")
+            print_error(f"Connection failed: {e}")
+            if not typer.confirm("Save profile anyway?"):
+                raise typer.Abort()
+
     profile = ConnectionProfile(
         name=name,
         uri=uri,
@@ -241,3 +271,34 @@ def profile_show(
         "description": profile.description or "(none)",
     }
     format_output(profile_dict, "table", title=f"Profile: {name}")
+
+
+@profile_app.command("test")
+def profile_test(
+    name: str = typer.Argument(..., help="Profile name to test"),
+) -> None:
+    """Test connection for a profile."""
+    profiles = load_profiles()
+    if name not in profiles:
+        print_error(f"Profile '{name}' not found")
+        raise typer.Exit(1)
+
+    profile = profiles[name]
+    console.print(f"Testing '[cyan]{name}[/cyan]' ({profile.uri})... ", end="")
+
+    try:
+        from yami.core.client import YamiClient
+
+        client = YamiClient(
+            uri=profile.uri,
+            token=profile.token,
+            db_name=profile.db,
+            timeout=10.0,
+        )
+        version = client.get_server_version()
+        client.close()
+        console.print(f"[green]✓[/green] OK (Milvus {version})")
+    except Exception as e:
+        console.print("[red]✗[/red] Failed")
+        print_error(str(e))
+        raise typer.Exit(1)

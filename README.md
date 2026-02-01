@@ -354,6 +354,22 @@ yami completion show
 - `MILVUS_TOKEN` - Default authentication token
 - `YAMI_CONFIG_DIR` - Configuration directory (default: `~/.yami`)
 
+## Diagnostics
+
+Run built-in diagnostics to check your environment:
+
+```bash
+yami doctor
+```
+
+For detailed troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+
+Enable debug mode for verbose output:
+
+```bash
+yami --debug collection list
+```
+
 ## Requirements
 
 - Python 3.10+
